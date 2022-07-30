@@ -6,6 +6,9 @@ module wallnormalgrid
 
     public :: prepare_grid, d_dy_complexvector
 
+    ! derivative matrices
+    real(kind=dp) :: dt11(5,my),dt12(5,my)
+
 
 contains
     ! subroutine prepare_grid
@@ -24,7 +27,6 @@ contains
     ! "common /ygrid/ y(my), fmap(my), trp(my)"
     ! "save   /ygrid/"
     subroutine prepare_grid
-        use matrices
         real(kind=dp) :: fmap, y, trp
         common /ygrid/ y(my), fmap(my), trp(my)
         save   /ygrid/
@@ -68,7 +70,6 @@ contains
     !   dudy: [complex double, size my, Output]
     !         first y derivative of input vector
     function d_dy_complexvector( u ) result( dudy )
-        use matrices,only: dt12,dt11
         complex(kind=dp), dimension(my), intent(in) :: u
         complex(kind=dp), dimension(my) :: dudy
 
@@ -170,7 +171,6 @@ contains
     !   vector_out: [double, size my, Output]
     !               output vector = D12 * vector_in
     function dt12_times_realvector( vector_in ) result( vector_out )
-        use matrices
         real(kind=dp), dimension(myf), intent(in) :: vector_in
         real(kind=dp), dimension(myf) :: vector_out
 
