@@ -1,4 +1,4 @@
-module h5
+module h5save
     use types, only: sp, dp
     use mpi
     use hdf5
@@ -6,133 +6,12 @@ module h5
     private
     include 'parameters'
 
-    public :: h5load_real_vector, h5readVelocities, h5save_complex_2d_matrix
-    public :: h5save_real_2d_matrix, h5save_complex_3d_matrix_parallel
+    public :: h5save_C2, h5save_R2, h5save_C3P
 
 
 contains
-    ! function ouput = h5load_real_vector
-    ! Arguments:
-    !   filename: [string, Input]
-    !             h5 filename with path
-    !   varname : [string, Input]
-    !             variable name in h5 file, must be real numerical vector
-    ! Output:
-    !   output:   [double vector]
-    function h5load_real_vector(filename, varname ) result(vector)
-        character(len=*), intent(in) :: filename, varname
-        real(kind=dp), dimension(:,:), allocatable :: matrix
-        real(kind=dp), dimension(:), allocatable :: vector
-
-        INTEGER(HID_T) :: file_id        ! File identifier
-        INTEGER(HID_T) :: dset_id        ! Dataset identifier
-        INTEGER(HID_T) :: space_id       ! Dataspace identifier
-        INTEGER(HID_T) :: dtype_id       ! Dataspace identifier
-
-        INTEGER :: error ! Error flag
-        INTEGER :: dim1, dim2 ! matrix dimensions
-
-        INTEGER(HSIZE_T), DIMENSION(2) :: data_dims
-        INTEGER(HSIZE_T), DIMENSION(2) :: max_dims
-
-
-        ! Initialize FORTRAN interface.
-        CALL h5open_f(error)
-        ! Open an existing file with read only
-        CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
-        ! Open an existing dataset.
-        CALL h5dopen_f(file_id, varname, dset_id, error)
-        !Get dataspace ID
-        CALL h5dget_space_f(dset_id, space_id,error)
-        !Get dataspace dims
-        CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
-        dim1 = data_dims(1)
-        dim2 = data_dims(2)
-
-        ! Allocate dimensions to dset_data for reading
-        ALLOCATE(matrix(dim1,dim2))
-        ! Get data
-        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
-        ! consistent with the variable type of matrix
-        CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix, data_dims, error)
-
-        ! Reshape matrix into a vector
-        vector = reshape( matrix, (/ dim1 /) )
-
-        ! close dataset
-        CALL h5dclose_f(dset_id, error)
-        ! close file
-        CALL h5fclose_f(file_id, error)
-        ! close h5 interface
-        CALL h5close_f(error)
-    end function h5load_real_vector
-
-    ! subroutine h5readVelocities( filename, varname, Buffer )
-    ! Arguments:
-    !   filename: [string, Input]
-    !             h5 filename with path
-    !   varname:  [string, Input]
-    !             "u" or "v" or "w" indicating which velocity component to read
-    !   Buffer:   [3d double matrix, size (mxf,mzf,myf), Output]
-    !             velocity read from the h5 file
-    subroutine h5readVelocities( filename, varname, Buffer )
-        character(len=*), intent(in) :: filename
-        character(len=1), intent(in) :: varname
-        complex(kind=dp), intent(out), dimension(mxf,mzf,myf) :: Buffer
-        ! temp arrays for real and imaginary parts
-        real(kind=sp), dimension(mxf,mzf,myf) :: rtemp, itemp
-
-        INTEGER(HID_T) :: file_id        ! File identifier
-        INTEGER(HID_T) :: dset_id        ! Dataset identifier
-
-        INTEGER :: error ! Error flag
-
-        INTEGER(HSIZE_T), DIMENSION(3) :: data_dims ! data dimensions
-
-
-        ! data dimensions
-        data_dims = (/ mxf,mzf,myf /)
-
-        ! Initialize FORTRAN interface.
-        CALL h5open_f(error)
-        ! Open an existing file with read only
-        CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
-        if ( error .eq. -1) then
-            write(*,*) "Failed to open file: ", filename
-            write(*,*)
-            stop
-        endif
-
-        ! Open an existing dataset and get data
-        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
-        ! consistent with the variable type of output
-        ! ----------------------------- Real part -----------------------------
-        ! Open dataset
-        CALL h5dopen_f(file_id, ("/velocityFieldsFourier/" // varname // "RealPart"), dset_id, error)
-        ! Read dataset
-        CALL h5dread_f(dset_id, H5T_IEEE_F32LE, rtemp, data_dims, error)
-        ! Close dataset
-        CALL h5dclose_f(dset_id, error)
-        ! --------------------------- Imaginary part ---------------------------
-        ! Open dataset
-        CALL h5dopen_f(file_id, ("/velocityFieldsFourier/" // varname // "ImaginaryPart"), dset_id, error)
-        ! Read dataset
-        CALL h5dread_f(dset_id, H5T_IEEE_F32LE, itemp, data_dims, error)
-        ! Close dataset
-        CALL h5dclose_f(dset_id, error)
-
-
-        ! Build data from real and imaginary part
-        Buffer = CMPLX( DBLE(rtemp), DBLE(itemp) , dp )
-
-        ! close file
-        CALL h5fclose_f(file_id, error)
-        ! close h5 interface
-        CALL h5close_f(error)
-    end subroutine h5readVelocities
-
-
-    ! subroutine h5save_complex_2d_matrix( filename, varname, matrix )
+    ! subroutine h5save_C2( filename, varname, matrix )
+    ! save a complex rank 2 matrix to h5 file
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name (complex 2d matrix)
@@ -141,7 +20,7 @@ contains
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
     ! (one group with two datasets)
     ! Same as my matlab h5 libaries
-    subroutine h5save_complex_2d_matrix( filename, varname, matrix )
+    subroutine h5save_C2( filename, varname, matrix )
         character(len=*), intent(in) :: filename, varname
         complex(kind=dp), intent(in), dimension(:,:) :: matrix
 
@@ -209,10 +88,11 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
-    end subroutine h5save_complex_2d_matrix
+    end subroutine h5save_C2
 
 
-    ! subroutine h5save_real_2d_matrix( filename, varname, matrix )
+    ! subroutine h5save_R2( filename, varname, matrix )
+    ! save a real rank 2 matrix to h5 file
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name (real 2d matrix)
@@ -221,7 +101,7 @@ contains
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
     ! (one group with two datasets)
     ! Same as my matlab h5 libaries
-    subroutine h5save_real_2d_matrix( filename, varname, matrix )
+    subroutine h5save_R2( filename, varname, matrix )
         character(len=*), intent(in) :: filename, varname
         real(kind=dp), intent(in), dimension(:,:) :: matrix
 
@@ -270,13 +150,14 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
-    end subroutine h5save_real_2d_matrix
+    end subroutine h5save_R2
 
 
-    ! subroutine h5save_complex_3d_matrix_parallel( filename, varname, matrix )
-    ! This function saves a complex 3d matrix in parallel. Each processor has
-    ! data for a few wall parallel planes. And the full data has myf as the
-    ! full third dimension. All processors should call this function.
+    ! subroutine h5save_C3P( filename, varname, matrix )
+    ! save a complex rank 3 matrix to h5 file in parallel.
+    !
+    ! Each processor has data for a few wall parallel planes. And the full data
+    ! has myf as the full third dimension. All processors should call this function.
     !
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
@@ -286,7 +167,7 @@ contains
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
     ! (one group with two datasets)
     ! Same as my matlab h5 libaries
-    subroutine h5save_complex_3d_matrix_parallel( filename, varname, matrix)
+    subroutine h5save_C3P( filename, varname, matrix)
         ! Global variables
         integer jbeg,jend,kbeg,kend,jb,je,kb,ke,mmy,mmz
         common /point/ jbeg(0:numerop-1),jend(0:numerop-1), &
@@ -422,7 +303,7 @@ contains
         ! Close FORTRAN interface
         CALL h5close_f(error)
 
-    end subroutine h5save_complex_3d_matrix_parallel
+    end subroutine h5save_C3P
 
-end module h5
+end module h5save
 
