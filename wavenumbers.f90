@@ -4,7 +4,7 @@ module wavenumbers
     private
     include 'parameters'
 
-    real(kind=dp) :: kx_full, kx_pos, kz_full, kz_pos
+    real(kind=cp) :: kx_full, kx_pos, kz_full, kz_pos
     common /wave/ kx_full(nkx_full), kx_pos(nkx_pos), &
                   kz_full(nkz_full), kz_pos(nkz_pos)
     save /wave/
@@ -26,20 +26,20 @@ contains
 
         ! kx >= 0 part
         DO ii = 1, nkx_pos
-            kx_full(ii) = real(ii-1, dp) * dkx
+            kx_full(ii) = real(ii-1, cp) * dkx
         ENDDO
         ! kx <  0 part
         DO ii = nkx_pos+1, nkx_full
-            kx_full(ii) = real(ii-1-nkx_full, dp) * dkx
+            kx_full(ii) = real(ii-1-nkx_full, cp) * dkx
         ENDDO
 
         ! kz >= 0 part
         DO ii = 1, nkz_pos
-            kz_full(ii) = real(ii-1, dp) * dkz
+            kz_full(ii) = real(ii-1, cp) * dkz
         ENDDO
         ! kz <  0 part
         DO ii = nkz_pos+1, nkz_full
-            kz_full(ii) = real(ii-1-nkz_full, dp) * dkz
+            kz_full(ii) = real(ii-1-nkz_full, cp) * dkz
         ENDDO
 
         kx_pos(:) = kx_full(1:nkx_pos)
@@ -53,21 +53,21 @@ contains
     ! in x in the Fourier domain
     !
     ! Arguments:
-    !   matrix_in : [double complex, size (mxf,mzf), Input]
+    !   matrix_in : [double/single complex, size (mxf,mzf), Input]
     !               velocity field in the Fourier domain at a single y plane
     ! Output:
-    !   matrix_out: [double complex, size (mxf,mzf), Output]
+    !   matrix_out: [double/single complex, size (mxf,mzf), Output]
     !               x derivative of the velocity field in the Fourier domain
     !               at a single y plane
     function kx_derivative( matrix_in ) result( matrix_out )
-        complex(kind=dp), dimension(mxf,mzf), intent(in) :: matrix_in
-        complex(kind=dp), dimension(mxf,mzf) :: matrix_out
+        complex(kind=cp), dimension(mxf,mzf), intent(in) :: matrix_in
+        complex(kind=cp), dimension(mxf,mzf) :: matrix_out
 
-        complex(kind=dp) :: complex_i
+        complex(kind=cp) :: complex_i
         integer :: ii
 
 
-        complex_i = ( 0.0d0, 1.0d0 )
+        complex_i = ( 0.0_cp, 1.0_cp )
 
         DO ii = 1, mzf
             matrix_out(:, ii) = matrix_in(:, ii) * kx_pos * complex_i
@@ -80,21 +80,21 @@ contains
     ! in z in the Fourier domain
     !
     ! Arguments:
-    !   matrix_in : [double complex, size (mxf,mzf), Input]
+    !   matrix_in : [double/single complex, size (mxf,mzf), Input]
     !               velocity field in the Fourier domain at a single y plane
     ! Output:
-    !   matrix_out: [double complex, size (mxf,mzf), Output]
+    !   matrix_out: [double/single complex, size (mxf,mzf), Output]
     !               z derivative of the velocity field in the Fourier domain
     !               at a single y plane
     function kz_derivative( matrix_in ) result( matrix_out )
-        complex(kind=dp), dimension(mxf,mzf), intent(in) :: matrix_in
-        complex(kind=dp), dimension(mxf,mzf) :: matrix_out
+        complex(kind=cp), dimension(mxf,mzf), intent(in) :: matrix_in
+        complex(kind=cp), dimension(mxf,mzf) :: matrix_out
 
-        complex(kind=dp) :: complex_i
+        complex(kind=cp) :: complex_i
         integer :: ii
 
 
-        complex_i = ( 0.0d0, 1.0d0 )
+        complex_i = ( 0.0_cp, 1.0_cp )
 
         DO ii = 1, mzf
             matrix_out(:, ii) = matrix_in(:, ii) * kz_full(ii) * complex_i

@@ -22,12 +22,11 @@ contains
     function h5load_R1(filename, varname ) result(vector)
         character(len=*), intent(in) :: filename, varname
         real(kind=dp), dimension(:,:), allocatable :: matrix
-        real(kind=dp), dimension(:), allocatable :: vector
+        real(kind=cp), dimension(:), allocatable :: vector
 
         INTEGER(HID_T) :: file_id        ! File identifier
         INTEGER(HID_T) :: dset_id        ! Dataset identifier
         INTEGER(HID_T) :: space_id       ! Dataspace identifier
-        INTEGER(HID_T) :: dtype_id       ! Dataspace identifier
 
         INTEGER :: error ! Error flag
         INTEGER :: dim1, dim2 ! matrix dimensions
@@ -48,16 +47,18 @@ contains
         CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
         dim1 = data_dims(1)
         dim2 = data_dims(2)
+        CALL h5sclose_f(space_id, error)
 
         ! Allocate dimensions to dset_data for reading
         ALLOCATE(matrix(dim1,dim2))
         ! Get data
         ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
         ! consistent with the variable type of matrix
+        ! this will default to a double precision read, and later converted to cp
         CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix, data_dims, error)
 
-        ! Reshape matrix into a vector
-        vector = reshape( matrix, (/ dim1 /) )
+        ! Convert to cp and reshape matrix into a vector
+        vector = reshape( real(matrix, cp), (/ dim1 /) )
 
         ! close dataset
         CALL h5dclose_f(dset_id, error)
@@ -78,7 +79,7 @@ contains
     subroutine h5loadVelocities( filename, varname, Buffer )
         character(len=*), intent(in) :: filename
         character(len=1), intent(in) :: varname
-        complex(kind=dp), intent(out), dimension(mxf,mzf,myf) :: Buffer
+        complex(kind=cp), intent(out), dimension(mxf,mzf,myf) :: Buffer
         ! temp arrays for real and imaginary parts
         real(kind=sp), dimension(mxf,mzf,myf) :: rtemp, itemp
 
@@ -122,8 +123,8 @@ contains
         CALL h5dclose_f(dset_id, error)
 
 
-        ! Build data from real and imaginary part
-        Buffer = CMPLX( DBLE(rtemp), DBLE(itemp) , dp )
+        ! Build data from real and imaginary part with conversion to cp
+        Buffer = CMPLX( REAL(rtemp, cp), REAL(itemp, cp) , cp )
 
         ! close file
         CALL h5fclose_f(file_id, error)

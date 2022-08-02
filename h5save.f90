@@ -15,14 +15,14 @@ contains
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name (complex 2d matrix)
-    !   matrix  : [double complex 2d matrix, Input] data to be saved
+    !   matrix  : [double/single complex 2d matrix, Input] data to be saved
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
     ! (one group with two datasets)
     ! Same as my matlab h5 libaries
     subroutine h5save_C2( filename, varname, matrix )
         character(len=*), intent(in) :: filename, varname
-        complex(kind=dp), intent(in), dimension(:,:) :: matrix
+        complex(kind=cp), intent(in), dimension(:,:) :: matrix
 
         character(len=100) :: dset_name ! dataset name
         integer(HSIZE_T), dimension(2) :: data_dim ! data dimensions
@@ -61,10 +61,14 @@ contains
         dset_name = varname // "/" // varname // "_REAL"
         ! Create dataspace with rank 2 and size data_dim
         CALL h5screate_simple_f(2, data_dim, dspace_id, error)
-        ! Create double precision dataset with path '/var/var_REAL'
-        CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-        ! Write dataset
-        CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, dp), data_dim, error)
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        if ( cp .eq. dp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), data_dim, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), data_dim, error)
+        endif
         ! Close dataset
         CALL h5dclose_f(dset_id, error)
         ! Close dataspace
@@ -74,10 +78,14 @@ contains
         dset_name = varname // "/" // varname // "_IMAG"
         ! Create dataspace with rank 2 and size data_dim
         CALL h5screate_simple_f(2, data_dim, dspace_id, error)
-        ! Create double precision dataset with path '/var/var_IMAG'
-        CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-        ! Write dataset
-        CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), data_dim, error)
+        ! Create double/single precision dataset with path '/var/var_IMAG' and write data
+        if ( cp .eq. dp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), data_dim, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), data_dim, error)
+        endif
         ! Close dataset
         CALL h5dclose_f(dset_id, error)
         ! Close dataspace
@@ -96,21 +104,20 @@ contains
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name (real 2d matrix)
-    !   matrix  : [double 2d matrix, Input] data to be saved
+    !   matrix  : [double/single 2d matrix, Input] data to be saved
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
     ! (one group with two datasets)
     ! Same as my matlab h5 libaries
     subroutine h5save_R2( filename, varname, matrix )
         character(len=*), intent(in) :: filename, varname
-        real(kind=dp), intent(in), dimension(:,:) :: matrix
+        real(kind=cp), intent(in), dimension(:,:) :: matrix
 
         character(len=100) :: dset_name ! dataset name
         integer(HSIZE_T), dimension(2) :: data_dim ! data dimensions
 
         integer :: error ! error flag
         INTEGER(HID_T) :: file_id  ! file id
-        INTEGER(HID_T) :: group_id ! group id
         INTEGER(HID_T) :: dspace_id ! dataspace id
         INTEGER(HID_T) :: dset_id ! dataset id
 
@@ -136,10 +143,14 @@ contains
         dset_name = varname
         ! Create dataspace with rank 2 and size data_dim
         CALL h5screate_simple_f(2, data_dim, dspace_id, error)
-        ! Create double precision dataset with path '/var'
-        CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-        ! Write dataset
-        CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, matrix, data_dim, error)
+        ! Create double/single precision dataset with path '/var' and write data
+        if ( cp .eq. dp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, matrix, data_dim, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, matrix, data_dim, error)
+        endif
         ! Close dataset
         CALL h5dclose_f(dset_id, error)
         ! Close dataspace
@@ -162,7 +173,7 @@ contains
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name
-    !   matrix  : [double complex 3d matrix, Input] data to be saved
+    !   matrix  : [double/single complex 3d matrix, Input] data to be saved
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
     ! (one group with two datasets)
@@ -176,7 +187,7 @@ contains
         save /point/
         ! Inputs
         character(len=*), intent(in) :: filename, varname
-        complex(kind=dp), intent(in), dimension(:,:,:) :: matrix
+        complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
 
         character(len=100) :: dset_name ! dataset name
 
@@ -242,14 +253,19 @@ contains
         slabOffset = (/ 0, 0, 0 /)
         call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
 
-        ! Create double precision dataset with path '/var/var_REAL'
-        call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
         ! Create h5 property list for parallel data transfer
         call h5pcreate_f(H5P_DATASET_XFER_F, PropertyList_id, error)
         call h5pset_dxpl_mpio_f(PropertyList_id, H5FD_MPIO_COLLECTIVE_F, error)
-        ! Write dataset
-        call h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, dp), slice_data_dim, error, &
-                mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        if ( cp .eq. dp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
+        else if ( cp .eq. sp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
+        endif
         ! Close property list
         call h5pclose_f(PropertyList_id, error)
         ! Close dataset
@@ -276,14 +292,19 @@ contains
         slabOffset = (/ 0, 0, 0 /)
         call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
 
-        ! Create double precision dataset with path '/var/var_REAL'
-        call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
         ! Create h5 property list for parallel data transfer
         call h5pcreate_f(H5P_DATASET_XFER_F, PropertyList_id, error)
         call h5pset_dxpl_mpio_f(PropertyList_id, H5FD_MPIO_COLLECTIVE_F, error)
-        ! Write dataset
-        call h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), slice_data_dim, error, &
-                mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        if ( cp .eq. dp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
+        else if ( cp .eq. sp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
+        endif
         ! Close property list
         call h5pclose_f(PropertyList_id, error)
         ! Close dataset

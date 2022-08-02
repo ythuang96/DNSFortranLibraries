@@ -69,9 +69,9 @@ contains
     !              processor ID
     !   sourceid:  [integer, Input]
     !              the processor ID where the full data field is saved
-    !   vel_full:  [double complex, size (mxf,  mzf,myf), Input]
+    !   vel_full:  [double/single complex, size (mxf,  mzf,myf), Input]
     !              the full velocity field, read from h5, interpolated and normalized
-    !   vel_slice: [double complex, size (mxf,kb:ke,myf), Output]
+    !   vel_slice: [double/single complex, size (mxf,kb:ke,myf), Output]
     !              velocity data for each processor, full xy planes with a few kz
     subroutine distribute_velocity( myid, sourceid, vel_full, vel_slice )
         ! Global Pointers
@@ -82,13 +82,13 @@ contains
         save /point/
         ! Input/Output
         integer, intent(in) :: myid, sourceid
-        complex(kind=dp), intent( in), dimension(mxf,  mzf,myf) :: vel_full
-        complex(kind=dp), intent(out), dimension(mxf,kb:ke,myf) :: vel_slice
+        complex(kind=cp), intent( in), dimension(mxf,  mzf,myf) :: vel_full
+        complex(kind=cp), intent(out), dimension(mxf,kb:ke,myf) :: vel_slice
 
         ! send/receive data size
         integer :: nsend, nreceive
         ! send/receive buffers
-        real(kind=dp), dimension(:,:,:,:), allocatable :: send_buffer, receive_buffer
+        real(kind=cp), dimension(:,:,:,:), allocatable :: send_buffer, receive_buffer
         ! kb, ke for the target processor
         integer :: kb_target, ke_target
         ! Loop index
@@ -114,10 +114,14 @@ contains
 
                     ! allocate a buffer to contain both the real and imaginary parts
                     ALLOCATE(send_buffer(mxf,kb_target:ke_target,myf,2))
-                    send_buffer(:,:,:,1) =  real( vel_full(:,kb_target:ke_target,:), dp)
+                    send_buffer(:,:,:,1) =  real( vel_full(:,kb_target:ke_target,:), cp)
                     send_buffer(:,:,:,2) = aimag( vel_full(:,kb_target:ke_target,:) )
                     ! sourceid send data to iproc
-                    call MPI_SEND(send_buffer, nsend, MPI_DOUBLE_PRECISION, iproc, 0, MPI_COMM_WORLD, ierr )
+                    if ( cp .eq. dp ) then
+                        call MPI_SEND(send_buffer, nsend, MPI_DOUBLE_PRECISION, iproc, 0, MPI_COMM_WORLD, ierr )
+                    else if ( cp .eq. sp ) then
+                        call MPI_SEND(send_buffer, nsend, MPI_REAL            , iproc, 0, MPI_COMM_WORLD, ierr )
+                    endif
                     ! deallocate buffer
                     DEALLOCATE(send_buffer)
                 endif
@@ -129,9 +133,13 @@ contains
             ! allocate a buffer to contain both the real and imaginary parts
             ALLOCATE(receive_buffer(mxf,kb:ke,myf,2))
             ! receive data from sourceid
-            call MPI_RECV(receive_buffer, nreceive, MPI_DOUBLE_PRECISION, sourceid, 0, MPI_COMM_WORLD, istat, ierr )
+            if ( cp .eq. dp ) then
+                call MPI_RECV(receive_buffer, nreceive, MPI_DOUBLE_PRECISION, sourceid, 0, MPI_COMM_WORLD, istat, ierr )
+            else if ( cp .eq. sp ) then
+                call MPI_RECV(receive_buffer, nreceive, MPI_REAL            , sourceid, 0, MPI_COMM_WORLD, istat, ierr )
+            endif
             ! build output from both real and imaginary parts
-            vel_slice = CMPLX( receive_buffer(:,:,:,1), receive_buffer(:,:,:,2), dp)
+            vel_slice = CMPLX( receive_buffer(:,:,:,1), receive_buffer(:,:,:,2), cp)
             DEALLOCATE(receive_buffer)
         endif
     end subroutine distribute_velocity
@@ -142,11 +150,11 @@ contains
     ! each processor originally has all the data in a few xy planes (a few kz wavenumbers)
     ! after the exchange, each processor has all the data in a few xz planes (a few y grid points)
     ! Arguments:
-    !   xy:   [double, size (mxf,kb:ke,myf), Input]
+    !   xy:   [double/single, size (mxf,kb:ke,myf), Input]
     !         all the data in a few xy planes for this processor (a few kz wavenumbers)
     !   myid: [integer, Input]
     !         processor ID
-    !   xz:   [double, size (mxf,mzf,jb:je), Output]
+    !   xz:   [double/single, size (mxf,mzf,jb:je), Output]
     !         all the data in a few xz planes for this processor (a few y grid points)
     subroutine change_xyplane2xzplane( xy, myid, xz )
         ! global pointer variables
@@ -156,13 +164,13 @@ contains
                        jb,je,kb,ke,mmy,mmz
         save /point/
         ! Input/outpus
-        complex(kind=dp), intent( in), dimension(mxf,kb:ke,myf) :: xy
-        complex(kind=dp), intent(out), dimension(mxf,mzf,jb:je) :: xz
+        complex(kind=cp), intent( in), dimension(mxf,kb:ke,myf) :: xy
+        complex(kind=cp), intent(out), dimension(mxf,mzf,jb:je) :: xz
         integer, intent(in) :: myid
 
         ! buffer to package real with imaginary
-        real(kind=dp), dimension(mxf,kb:ke,myf,2) :: send_buffer
-        real(kind=dp), dimension(mxf,mzf,jb:je,2) :: recv_buffer
+        real(kind=cp), dimension(mxf,kb:ke,myf,2) :: send_buffer
+        real(kind=cp), dimension(mxf,mzf,jb:je,2) :: recv_buffer
 
         ! temp jb je kb ke pointers
         integer :: jb_target, je_target, kb_target, ke_target
@@ -178,7 +186,7 @@ contains
 
 
         ! package real and imaginary part of my data
-        send_buffer(:,kb:ke,:,1) =  real( xy(:,kb:ke,:), dp)
+        send_buffer(:,kb:ke,:,1) =  real( xy(:,kb:ke,:), cp)
         send_buffer(:,kb:ke,:,2) = aimag( xy(:,kb:ke,:) )
 
         ! get part of data from myself first
@@ -209,15 +217,22 @@ contains
                 nrecv = mxf*(ke_target-kb_target+1)*(je-jb+1)*2
 
                 ! exchange data
-                call MPI_SENDRECV( &
-                    send_buffer(:, kb:ke, jb_target:je_target,:) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
-                    recv_buffer(:, kb_target:ke_target, jb:je,:) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
-                    MPI_COMM_WORLD,istat,ierr)
+                if ( cp .eq. dp ) then
+                    call MPI_SENDRECV( &
+                        send_buffer(:, kb:ke, jb_target:je_target,:) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
+                        recv_buffer(:, kb_target:ke_target, jb:je,:) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
+                        MPI_COMM_WORLD,istat,ierr)
+                else if ( cp .eq. sp ) then
+                    call MPI_SENDRECV( &
+                        send_buffer(:, kb:ke, jb_target:je_target,:) ,nsend,MPI_REAL            ,iproc,0, &
+                        recv_buffer(:, kb_target:ke_target, jb:je,:) ,nrecv,MPI_REAL            ,iproc,0, &
+                        MPI_COMM_WORLD,istat,ierr)
+                endif
             endif
         enddo
 
         ! Build complex output
-        xz = CMPLX( recv_buffer(:,:,jb:je,1), recv_buffer(:,:,jb:je,2), dp)
+        xz = CMPLX( recv_buffer(:,:,jb:je,1), recv_buffer(:,:,jb:je,2), cp)
     end subroutine
 
 

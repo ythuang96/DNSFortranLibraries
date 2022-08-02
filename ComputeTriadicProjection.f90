@@ -22,12 +22,12 @@ contains
         use ComputeForcing, only: compute_forcing_meansubtract
         use fourier, only: ifftx, ifftz
         ! Input/Output
-        complex(kind=dp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
+        complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         integer, intent(in) :: yplane
-        complex(kind=dp), intent(inout), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
-        complex(kind=dp), intent(inout), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
+        complex(kind=cp), intent(inout), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
+        complex(kind=cp), intent(inout), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
         ! Forcing
-        complex(kind=dp), dimension(mxf,mzf) :: fxf,fyf,fzf
+        complex(kind=cp), dimension(mxf,mzf) :: fxf,fyf,fzf
 
 
         ! Compute forcing
@@ -52,31 +52,31 @@ contains
     ! This function computes the projection coefficient P_kx at a given yplane
     !
     ! Arguments:
-    !   uf,vf,wf:            [double complex, Size (mxf,mzf), Input]
+    !   uf,vf,wf:            [double/single complex, Size (mxf,mzf), Input]
     !                        velocity fields at a single y plane
-    !   dudyf,dvdyf,dwdyf:   [double complex, Size (mxf,mzf), Input]
+    !   dudyf,dvdyf,dwdyf:   [double/single complex, Size (mxf,mzf), Input]
     !                        y derivatives of velocity fields at a single y plane
-    !   fxf,fyf,fzf:         [double complex, Size (mxf,mzf), Input]
+    !   fxf,fyf,fzf:         [double/single complex, Size (mxf,mzf), Input]
     !                        mean subtracted non-linear forcing at a single y plane
-    !   Px_kx, Py_kx, Pz_kx: [double complex, Size (nkx_pos,nkx_full), Output]
+    !   Px_kx, Py_kx, Pz_kx: [double/single complex, Size (nkx_pos,nkx_full), Output]
     !                        The computed projection coefficients
     subroutine compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
         use fourier, only: ifftz
         use wavenumbers, only: kx_derivative, kz_derivative
         ! Input/Outputs
-        complex(kind=dp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
-        complex(kind=dp), intent(inout), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
+        complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
+        complex(kind=cp), intent(inout), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
 
         ! Results after ifft in z
         ! Note that these all have a built in transpose that exchanges the
         ! kx dimension with the z dimension for improved indexing effeciency
-        complex(kind=dp), dimension(mgalz,nkx_pos ) :: uf_t, vf_t, wf_t
-        complex(kind=dp), dimension(mgalz,nkx_full) :: fx_t, fy_t, fz_t
-        complex(kind=dp), dimension(mgalz,nkx_full) :: dudx_t, dvdx_t, dwdx_t
-        complex(kind=dp), dimension(mgalz,nkx_full) :: dudy_t, dvdy_t, dwdy_t
-        complex(kind=dp), dimension(mgalz,nkx_full) :: dudz_t, dvdz_t, dwdz_t
+        complex(kind=cp), dimension(mgalz,nkx_pos ) :: uf_t, vf_t, wf_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: fx_t, fy_t, fz_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: dudx_t, dvdx_t, dwdx_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: dudy_t, dvdy_t, dwdy_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: dudz_t, dvdz_t, dwdz_t
         ! Temp variables for the loop
-        complex(kind=dp), dimension(mgalz) :: uf_temp, vf_temp, wf_temp
+        complex(kind=cp), dimension(mgalz) :: uf_temp, vf_temp, wf_temp
         integer :: jj, kk
 
 
@@ -130,9 +130,9 @@ contains
                     ! compute f for the current kx1 + kx2
                     (-uf_temp*dudx_t(:,kk) -vf_temp*dudy_t(:,kk) -wf_temp*dudz_t(:,kk)) &
                     ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
-                    *DCONJG(fx_t(:,kk+jj-1)) &
+                    *CONJG(fx_t(:,kk+jj-1)) &
                     ! average in z and time
-                    )/mgalz/nt &
+                    )/real(mgalz, cp)/real(nt,cp) &
                     ! add to the cumulative time sum
                     + Px_kx(jj,kk)
 
@@ -141,9 +141,9 @@ contains
                     ! compute f for the current kx1 + kx2
                     (-uf_temp*dvdx_t(:,kk) -vf_temp*dvdy_t(:,kk) -wf_temp*dvdz_t(:,kk)) &
                     ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
-                    *DCONJG(fy_t(:,kk+jj-1)) &
+                    *CONJG(fy_t(:,kk+jj-1)) &
                     ! average in z and time
-                    )/mgalz/nt &
+                    )/real(mgalz, cp)/real(nt,cp) &
                     ! add to the cumulative time sum
                     + Py_kx(jj,kk)
 
@@ -152,9 +152,9 @@ contains
                     ! compute f for the current kx1 + kx2
                     (-uf_temp*dwdx_t(:,kk) -vf_temp*dwdy_t(:,kk) -wf_temp*dwdz_t(:,kk)) &
                     ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
-                    *DCONJG(fz_t(:,kk+jj-1)) &
+                    *CONJG(fz_t(:,kk+jj-1)) &
                     ! average in z and time
-                    )/mgalz/nt &
+                    )/real(mgalz, cp)/real(nt,cp) &
                     ! add to the cumulative time sum
                     + Pz_kx(jj,kk)
             ENDDO
@@ -181,17 +181,17 @@ contains
         use fourier, only: ifftx
         use wavenumbers, only: kx_derivative, kz_derivative
         ! Input/Outputs
-        complex(kind=dp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
-        complex(kind=dp), intent(inout), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
+        complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
+        complex(kind=cp), intent(inout), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
 
         ! Results after ifft in x
-        complex(kind=dp), dimension(mgalx, nkz_pos ) :: uf_t, vf_t, wf_t
-        complex(kind=dp), dimension(mgalx, nkz_full) :: fx_t, fy_t, fz_t
-        complex(kind=dp), dimension(mgalx, nkz_full) :: dudx_t, dvdx_t, dwdx_t
-        complex(kind=dp), dimension(mgalx, nkz_full) :: dudy_t, dvdy_t, dwdy_t
-        complex(kind=dp), dimension(mgalx, nkz_full) :: dudz_t, dvdz_t, dwdz_t
+        complex(kind=cp), dimension(mgalx, nkz_pos ) :: uf_t, vf_t, wf_t
+        complex(kind=cp), dimension(mgalx, nkz_full) :: fx_t, fy_t, fz_t
+        complex(kind=cp), dimension(mgalx, nkz_full) :: dudx_t, dvdx_t, dwdx_t
+        complex(kind=cp), dimension(mgalx, nkz_full) :: dudy_t, dvdy_t, dwdy_t
+        complex(kind=cp), dimension(mgalx, nkz_full) :: dudz_t, dvdz_t, dwdz_t
         ! Temp variables for the loop
-        complex(kind=dp), dimension(mgalx) :: uf_temp, vf_temp, wf_temp
+        complex(kind=cp), dimension(mgalx) :: uf_temp, vf_temp, wf_temp
         integer :: jj, kk
 
 
@@ -245,9 +245,9 @@ contains
                     ! compute f for the current kz1 + kz2
                     (-uf_temp*dudx_t(:,kk) -vf_temp*dudy_t(:,kk) -wf_temp*dudz_t(:,kk)) &
                     ! project onto this kz3, which is shifted by (jj-1) points compared to kz2
-                    *DCONJG(fx_t(:,kk+jj-1)) &
+                    *CONJG(fx_t(:,kk+jj-1)) &
                     ! average in x and time
-                    )/mgalx/nt &
+                    )/real(mgalz, cp)/real(nt,cp) &
                     ! add to the cumulative time sum
                     + Px_kz(jj,kk)
 
@@ -256,9 +256,9 @@ contains
                     ! compute f for the current kz1 + kz2
                     (-uf_temp*dvdx_t(:,kk) -vf_temp*dvdy_t(:,kk) -wf_temp*dvdz_t(:,kk)) &
                     ! project onto this kz3, which is shifted by (jj-1) points compared to kz2
-                    *DCONJG(fy_t(:,kk+jj-1)) &
+                    *CONJG(fy_t(:,kk+jj-1)) &
                     ! average in x and time
-                    )/mgalx/nt &
+                    )/real(mgalz, cp)/real(nt,cp) &
                     ! add to the cumulative time sum
                     + Py_kz(jj,kk)
 
@@ -267,9 +267,9 @@ contains
                     ! compute f for the current kz1 + kz2
                     (-uf_temp*dwdx_t(:,kk) -vf_temp*dwdy_t(:,kk) -wf_temp*dwdz_t(:,kk)) &
                     ! project onto this kz3, which is shifted by (jj-1) points compared to kz2
-                    *DCONJG(fz_t(:,kk+jj-1)) &
+                    *CONJG(fz_t(:,kk+jj-1)) &
                     ! average in x and time
-                    )/mgalx/nt &
+                    )/real(mgalz, cp)/real(nt,cp) &
                     ! add to the cumulative time sum
                     + Pz_kz(jj,kk)
             ENDDO
@@ -291,13 +291,13 @@ contains
     !               ifft in x only, for the both positive and negative kz wavenumbers
     subroutine ifftx_fillnegkz( matrix_in, matrix_out )
         use fourier, only: ifftx
-        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=dp), intent(out), dimension(mgalx, nkz_full) :: matrix_out
+        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=cp), intent(out), dimension(mgalx, nkz_full) :: matrix_out
 
         ! kz = 0 is now in the middle, which is position nkz_pos
         call ifftx( matrix_in, matrix_out(:,nkz_pos:nkz_full))
         ! kz < 0 using hermitian symmetry, copy data from the kz > 0 part
-        matrix_out(:,1:nkz_pos-1) = DCONJG( matrix_out(:,nkz_full:nkz_pos+1:-1) )
+        matrix_out(:,1:nkz_pos-1) =  CONJG( matrix_out(:,nkz_full:nkz_pos+1:-1) )
     end subroutine ifftx_fillnegkz
 
 
@@ -315,14 +315,14 @@ contains
     !               effeciency
     subroutine ifftz_fillnegkx( matrix_in, matrix_out )
         use fourier, only: ifftz
-        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=dp), intent(out), dimension(mgalz, nkx_full) :: matrix_out
+        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=cp), intent(out), dimension(mgalz, nkx_full) :: matrix_out
 
 
         ! kx = 0 is now in the middle, which is position nkx_pos
         call ifftz( matrix_in, matrix_out(:,nkx_pos:nkx_full))
         ! kx < 0 using hermitian symmetry, copy data from the kx > 0 part
-        matrix_out(:,1:nkx_pos-1) = DCONJG( matrix_out(:,nkx_full:nkx_pos+1:-1) )
+        matrix_out(:,1:nkx_pos-1) =  CONJG( matrix_out(:,nkx_full:nkx_pos+1:-1) )
     end subroutine ifftz_fillnegkx
 
 

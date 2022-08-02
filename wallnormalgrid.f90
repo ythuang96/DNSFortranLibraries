@@ -7,7 +7,7 @@ module wallnormalgrid
     public :: prepare_grid, d_dy_complexvector
 
     ! derivative matrices
-    real(kind=dp) :: dt11(5,my),dt12(5,my)
+    real(kind=cp) :: dt11(5,my),dt12(5,my)
 
 
 contains
@@ -23,15 +23,15 @@ contains
     !
     ! To use dt11 and dt12, put "use matrices"
     ! To use y, fmap, trp, put:
-    ! "real(kind=dp) :: fmap, y, trp"
+    ! "real(kind=cp) :: fmap, y, trp"
     ! "common /ygrid/ y(my), fmap(my), trp(my)"
     ! "save   /ygrid/"
     subroutine prepare_grid
-        real(kind=dp) :: fmap, y, trp
+        real(kind=cp) :: fmap, y, trp
         common /ygrid/ y(my), fmap(my), trp(my)
         save   /ygrid/
 
-        real(kind=dp), dimension(my) :: b
+        real(kind=cp), dimension(my) :: b
         integer :: i, j
 
 
@@ -49,14 +49,14 @@ contains
         ! b = D11\b = D11\(D12*y) = derivative of y w.r.t uniform grid
         call banbks5(dt11,my,b)
         ! fmap = 1/derivative of y
-        fmap = 1d0 / b
+        fmap = 1.0_cp / b
 
         ! Compute trapezoid integration coefficient
-        trp(1) = 5d-1*( y(2)-y(1) )
+        trp(1) = 0.5_cp*( y(2)-y(1) )
         do j=2,my-1
-            trp(j) = 5d-1*( y(j+1)-y(j-1) )
+            trp(j) = 0.5_cp*( y(j+1)-y(j-1) )
         enddo
-        trp(my)= 5d-1*( y(my)-y(my-1) )
+        trp(my)= 0.5_cp*( y(my)-y(my-1) )
     end subroutine prepare_grid
 
 
@@ -64,23 +64,23 @@ contains
     ! Computes the first y derivative for a complex vector
     !
     ! Arguments:
-    !   u   : [complex double, size my, Input]
+    !   u   : [complex double/single, size my, Input]
     !         Input vector
     ! Output:
-    !   dudy: [complex double, size my, Output]
+    !   dudy: [complex double/single, size my, Output]
     !         first y derivative of input vector
     function d_dy_complexvector( u ) result( dudy )
-        complex(kind=dp), dimension(my), intent(in) :: u
-        complex(kind=dp), dimension(my) :: dudy
+        complex(kind=cp), dimension(my), intent(in) :: u
+        complex(kind=cp), dimension(my) :: dudy
 
-        real(kind=dp) :: fmap, y, trp
+        real(kind=cp) :: fmap, y, trp
         common /ygrid/ y(my), fmap(my), trp(my)
         save   /ygrid/
 
-        real(kind=dp), dimension(my) :: real_buffer, imag_buffer
+        real(kind=cp), dimension(my) :: real_buffer, imag_buffer
 
 
-        real_buffer = dt12_times_realvector( real( u, dp ) )
+        real_buffer = dt12_times_realvector( real( u, cp ) )
         call banbks5( dt11,my,real_buffer )
         real_buffer = real_buffer * fmap
 
@@ -88,7 +88,7 @@ contains
         call banbks5( dt11,my,imag_buffer )
         imag_buffer = imag_buffer * fmap
 
-        dudy = CMPLX( real_buffer, imag_buffer, dp)
+        dudy = CMPLX( real_buffer, imag_buffer, cp)
     end function d_dy_complexvector
 
 
@@ -102,17 +102,17 @@ contains
     !   y: [double, size my, Output]
     !      y coordinates
     function y_grid( g ) result( y )
-        real(kind=dp), intent(in) :: g
-        real(kind=dp), dimension(my) :: y
+        real(kind=cp), intent(in) :: g
+        real(kind=cp), dimension(my) :: y
 
         integer :: j
-        real(kind=dp) :: pi
+        real(kind=cp) :: pi
 
-        pi = dacos(-1d0)
+        pi = acos(-1.0_cp)
 
         do j = 1,my
-            y(j) = sin( g*pi/2d0 * ( 2d0*real(j-1, dp)/real(my-1, dp)-1d0 ) ) / &
-                   sin( g*pi/2d0 )
+            y(j) = sin( g*pi/2.0_cp * ( 2.0_cp*real(j-1, cp)/real(my-1, cp)-1.0_cp ) ) / &
+                   sin( g*pi/2.0_cp )
         enddo
     end function y_grid
 
@@ -129,34 +129,34 @@ contains
     !   d12: [double, size (5,my), Output]
     !        the five diagonals for matrix D12
     subroutine first_derivative_matrix( d11,d12 )
-        real(kind=dp), intent(out), dimension(5, my) :: d11, d12
+        real(kind=cp), intent(out), dimension(5, my) :: d11, d12
 
-        real(kind=dp) :: b(9), h
+        real(kind=cp) :: b(9), h
         integer :: j
 
 
-        h = 2d0/(my-1)
+        h = 2.0_cp/real(my-1, cp)
 
-        b(1) = 40941015625d-12
-        b(2) = 4905703125d-10
-        b(3) = ( 4d0 - 16d0*b(1) + 2d0*b(2) ) / ( 6d0*h )
-        b(4) = ( 22d0*b(1) + 4d0*b(2) - 1d0 ) / ( 12d0*h )
+        b(1) = real( 40941015625d-12, cp)
+        b(2) = real(  4905703125d-10, cp)
+        b(3) = ( - 16.0_cp*b(1) + 2.0_cp*b(2) + 4.0_cp ) / (  6.0_cp*h )
+        b(4) = (   22.0_cp*b(1) + 4.0_cp*b(2) - 1.0_cp ) / ( 12.0_cp*h )
 
         do j=3,my-2
-            d11(1:5,j) = (/ b(1), b(2), 1d0, b(2), b(1) /)
+            d11(1:5,j) = (/ b(1), b(2), 1.0_cp, b(2), b(1) /)
 
-            d12(1:5,j) = (/ -b(4), -b(3), 0d0, b(3), b(4) /)
+            d12(1:5,j) = (/ -b(4), -b(3), 0.0_cp, b(3), b(4) /)
         enddo
 
-        d11(1:5,1   ) = (/ 0d0, 0d0, 1d0, 2d0, 0d0 /)
-        d11(1:5,2   ) = (/ 0d0, 25d-2, 1d0, 25d-2, 0d0 /)
-        d11(1:5,my-1) = (/ 0d0, 25d-2, 1d0, 25d-2, 0d0 /)
-        d11(1:5,my  ) = (/ 0d0, 2d0, 1d0, 0d0, 0d0 /)
+        d11(1:5,1   ) = (/ 0.0_cp,  0.0_cp, 1.0_cp,  2.0_cp, 0.0_cp /)
+        d11(1:5,2   ) = (/ 0.0_cp, 0.25_cp, 1.0_cp, 0.25_cp, 0.0_cp /)
+        d11(1:5,my-1) = (/ 0.0_cp, 0.25_cp, 1.0_cp, 0.25_cp, 0.0_cp /)
+        d11(1:5,my  ) = (/ 0.0_cp,  2.0_cp, 1.0_cp,  0.0_cp, 0.0_cp /)
 
-        d12(1:5,1   ) = (/ 0d0, 0d0, -15d0/(6d0*h), 2d0/h, 1d0/(2d0*h) /)
-        d12(1:5,2   ) = (/ 0d0, -3d0/(4d0*h), 0d0, 3d0/(4d0*h), 0d0 /)
-        d12(1:5,my-1) = (/ 0d0, -3d0/(4d0*h), 0d0, 3d0/(4d0*h), 0d0 /)
-        d12(1:5,my  ) = (/ -1d0/(2d0*h), -2d0/h, 15d0/(6d0*h), 0d0, 0d0 /)
+        d12(1:5,1   ) = (/ 0.0_cp, 0.0_cp, -15.0_cp/(6.0_cp*h),  2.0_cp/h,  1.0_cp/(2.0_cp*h) /)
+        d12(1:5,2   ) = (/ 0.0_cp, -3.0_cp/(4.0_cp*h), 0.0_cp, 3.0_cp/(4.0_cp*h), 0.0_cp /)
+        d12(1:5,my-1) = (/ 0.0_cp, -3.0_cp/(4.0_cp*h), 0.0_cp, 3.0_cp/(4.0_cp*h), 0.0_cp /)
+        d12(1:5,my  ) = (/ -1.0_cp/(2.0_cp*h), -2.0_cp/h,  15.0_cp/(6.0_cp*h), 0.0_cp, 0.0_cp /)
     end subroutine first_derivative_matrix
 
 
@@ -171,8 +171,8 @@ contains
     !   vector_out: [double, size my, Output]
     !               output vector = D12 * vector_in
     function dt12_times_realvector( vector_in ) result( vector_out )
-        real(kind=dp), dimension(myf), intent(in) :: vector_in
-        real(kind=dp), dimension(myf) :: vector_out
+        real(kind=cp), dimension(myf), intent(in) :: vector_in
+        real(kind=cp), dimension(myf) :: vector_out
 
         integer :: i, j
 
@@ -185,7 +185,7 @@ contains
                       + dt12(4,2)*vector_in(3) &
                       + dt12(5,2)*vector_in(4)
         do j = 3,my-2
-            vector_out(j) = 0
+            vector_out(j) = 0.0_cp
             do i = 1,5
                 vector_out(j) = vector_out(j) + dt12(i,j)*vector_in(i+j-3)
             enddo
@@ -211,8 +211,8 @@ contains
     ! then run banbks5 with the updated a to update b to the solution
     SUBROUTINE banbks5(a,n,b)
         INTEGER, intent(in) :: n
-        REAL(kind=dp), intent(in) :: a(5,n)
-        REAL(kind=dp), intent(inout) :: b(n)
+        REAL(kind=cp), intent(in) :: a(5,n)
+        REAL(kind=cp), intent(inout) :: b(n)
 
         INTEGER :: i,k
 
@@ -232,7 +232,7 @@ contains
 
     SUBROUTINE bandec5(a,n)
         INTEGER, intent(in) :: n
-        REAL(kind=dp), intent(inout) :: a(5,n)
+        REAL(kind=cp), intent(inout) :: a(5,n)
 
         INTEGER :: j,k
 
@@ -244,7 +244,7 @@ contains
         enddo
 
         do k = 1,n-2
-            a(1,k)   = 1d0/a(1,k)
+            a(1,k)   = 1.0_cp/a(1,k)
 
             a(4,k)   = a(1,k+1)*a(1,k)
 
@@ -260,7 +260,7 @@ contains
             a(4,k+2) = a(5,k+2)
         enddo
 
-        a(1,n-1) = 1d0/a(1,n-1)
+        a(1,n-1) = 1.0_cp/a(1,n-1)
 
         a(4,n-1)=a(1,n)*a(1,n-1)
 
@@ -268,7 +268,7 @@ contains
         a(2,n) = a(3,n)-a(4,n-1)*a(3,n-1)
         a(3,n) = a(4,n)
 
-        a(1,n)=1d0/a(1,n)
+        a(1,n)=1.0_cp/a(1,n)
     END SUBROUTINE bandec5
 
 

@@ -13,34 +13,34 @@ contains
     ! plan then subtracts the mean
     !
     ! Arguments:
-    !   uf,vf,wf:          [double complex, Size (mxf,mzf), Input]
+    !   uf,vf,wf:          [double/single complex, Size (mxf,mzf), Input]
     !                      velocity fields at a single y plane
-    !   dudyf,dvdyf,dwdyf: [double complex, Size (mxf,mzf), Input]
+    !   dudyf,dvdyf,dwdyf: [double/single complex, Size (mxf,mzf), Input]
     !                      y derivatives of velocity fields at a single y plane
     !   yplane :           [Integer, Input]
     !                      index of this current y plane
-    !   fxf,fyf,fzf:       [double complex, Size (mxf,mzf), Output]
+    !   fxf,fyf,fzf:       [double/single complex, Size (mxf,mzf), Output]
     !                      mean subtracted non-linear forcing at a single y plane
     subroutine compute_forcing_meansubtract(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
         use fourier, only: ifft2, fft2
         use wavenumbers, only: kx_derivative, kz_derivative
-        complex(kind=dp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
-        complex(kind=dp), intent(out), dimension(mxf,mzf) :: fxf,fyf,fzf
+        complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
+        complex(kind=cp), intent(out), dimension(mxf,mzf) :: fxf,fyf,fzf
         integer, intent(in) :: yplane
 
         ! Global stats variables
-        real(kind=dp) :: U_cl, u00, v00, w00, fx00, fy00, fz00
+        real(kind=cp) :: U_cl, u00, v00, w00, fx00, fy00, fz00
         common /stats/ U_cl, &                           ! U_cl
                        u00(my), v00(my), w00(my), &      ! kx = kz = 0 modes of velocity
                        fx00(my), fy00(my), fz00(my)      ! kx = kz = 0 modes of forcing
         save /stats/
 
         ! velocities in physical space
-        real(kind=dp), dimension(mgalx,mgalz) :: u, v, w
+        real(kind=cp), dimension(mgalx,mgalz) :: u, v, w
         ! derivatives in physical space
-        real(kind=dp), dimension(mgalx,mgalz) :: ddx, ddy, ddz
+        real(kind=cp), dimension(mgalx,mgalz) :: ddx, ddy, ddz
         ! f in physical space
-        real(kind=dp), dimension(mgalx,mgalz) :: f
+        real(kind=cp), dimension(mgalx,mgalz) :: f
 
 
         ! ifft2 of uf, vf, wf into physical spac
