@@ -8,7 +8,10 @@ module h5save
 
     public :: h5save_R, h5save_C2, h5save_R2, h5save_C3P
 
-
+    ! The following standard for complex variables are used:
+    ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
+    ! (one group with two datasets)
+    ! Same as my matlab h5 libaries
 contains
     ! subroutine h5save_R( filename, varname, scalar )
     ! save a real number to h5 file
@@ -16,10 +19,6 @@ contains
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name saved in h5
     !   scalar  : [double/single scalar, Input] data to be saved
-    ! The following standard for complex variables are used:
-    ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
-    ! (one group with two datasets)
-    ! Same as my matlab h5 libaries
     subroutine h5save_R( filename, varname, scalar )
         character(len=*), intent(in) :: filename, varname
         real(kind=cp), intent(in) :: scalar
@@ -32,11 +31,10 @@ contains
         INTEGER(HID_T) :: dspace_id ! dataspace id
         INTEGER(HID_T) :: dset_id ! dataset id
 
-
         logical :: file_exists
 
-        data_dim = 1
 
+        data_dim = 1
 
         ! Initialize hdf5 interface
         call h5open_f(error)
@@ -49,7 +47,6 @@ contains
             ! Create new file
             CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
         endif
-
 
         dset_name = varname
         ! Create dataspace with rank 0 and size 1
@@ -67,7 +64,6 @@ contains
         ! Close dataspace
         CALL h5sclose_f(dspace_id, error)
 
-
         ! Close the file
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
@@ -81,10 +77,6 @@ contains
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name (complex 2d matrix)
     !   matrix  : [double/single complex 2d matrix, Input] data to be saved
-    ! The following standard for complex variables are used:
-    ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
-    ! (one group with two datasets)
-    ! Same as my matlab h5 libaries
     subroutine h5save_C2( filename, varname, matrix )
         character(len=*), intent(in) :: filename, varname
         complex(kind=cp), intent(in), dimension(:,:) :: matrix
@@ -100,9 +92,9 @@ contains
 
         logical :: file_exists
 
+
         ! get matrix dimensions
         data_dim = shape(matrix)
-
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -170,10 +162,6 @@ contains
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name (real 2d matrix)
     !   matrix  : [double/single 2d matrix, Input] data to be saved
-    ! The following standard for complex variables are used:
-    ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
-    ! (one group with two datasets)
-    ! Same as my matlab h5 libaries
     subroutine h5save_R2( filename, varname, matrix )
         character(len=*), intent(in) :: filename, varname
         real(kind=cp), intent(in), dimension(:,:) :: matrix
@@ -188,9 +176,9 @@ contains
 
         logical :: file_exists
 
+
         ! get matrix dimensions
         data_dim = shape(matrix)
-
 
         ! Initialize hdf5 interface
         call h5open_f(error)
@@ -203,7 +191,6 @@ contains
             ! Create new file
             CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
         endif
-
 
         dset_name = varname
         ! Create dataspace with rank 2 and size data_dim
@@ -220,7 +207,6 @@ contains
         CALL h5dclose_f(dset_id, error)
         ! Close dataspace
         CALL h5sclose_f(dspace_id, error)
-
 
         ! Close the file
         CALL h5fclose_f(file_id, error)
@@ -239,10 +225,6 @@ contains
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name
     !   matrix  : [double/single complex 3d matrix, Input] data to be saved
-    ! The following standard for complex variables are used:
-    ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
-    ! (one group with two datasets)
-    ! Same as my matlab h5 libaries
     subroutine h5save_C3P( filename, varname, matrix)
         ! Global variables
         integer jbeg,jend,kbeg,kend,jb,je,kb,ke,mmy,mmz
@@ -270,13 +252,13 @@ contains
 
         logical :: file_exists
 
+
         ! get full matrix dimensions
         full_data_dim = shape(matrix)
         full_data_dim(3) = myf ! the third dimension should always be the y grid size
         ! get matrix dimension for the slices that this current processor has
         slice_data_dim = shape(matrix)
         slice_data_dim(3) = je - jb + 1
-
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -302,7 +284,6 @@ contains
         CALL h5gcreate_f(file_id, varname, group_id, error)
         ! Close the group
         CALL h5gclose_f(group_id, error)
-
 
         ! ----------------------------- Real part -----------------------------
         dset_name = varname // "/" // varname // "_REAL"
@@ -381,7 +362,6 @@ contains
         call h5sclose_f(mspace_id, error)
         ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
         call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
-
 
         ! ------------------------------ Clean up ------------------------------
         ! Close the file
