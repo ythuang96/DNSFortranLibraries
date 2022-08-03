@@ -22,7 +22,7 @@ contains
     !   fxf,fyf,fzf:       [double/single complex, Size (mxf,mzf), Output]
     !                      mean subtracted non-linear forcing at a single y plane
     subroutine compute_forcing_meansubtract(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
-        use fourier, only: ifft2, fft2
+        use FFT_PRECISION_CONTROL, only: ifft2, fft2
         use wavenumbers, only: kx_derivative, kz_derivative
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         complex(kind=cp), intent(out), dimension(mxf,mzf) :: fxf,fyf,fzf

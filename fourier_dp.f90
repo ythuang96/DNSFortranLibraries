@@ -1,4 +1,4 @@
-module fourier
+module fourier_dp
     use, intrinsic :: iso_c_binding
     use types, only: sp, dp
     implicit none
@@ -29,16 +29,6 @@ contains
     ! "common /fft_plan/ plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2"
     ! "save   /fft_plan/"
     subroutine fft_plan
-        if ( cp .eq. dp ) then
-            ! for double precision computation
-            call fft_plan_dp
-        else if ( cp .eq. sp ) then
-            ! for single precision computation
-            call fft_plan_sp
-        endif
-    end subroutine fft_plan
-
-    subroutine fft_plan_dp
         complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_x
         complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_z
         complex(C_DOUBLE_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
@@ -60,31 +50,7 @@ contains
         ! https://www.fftw.org/fftw3_doc/Reversing-array-dimensions.html
         plan_fft2  = fftw_plan_dft_r2c_2d(mgalz,mgalx, matrix_2d_real,matrix_2d_comp, FFTW_PATIENT )
         plan_ifft2 = fftw_plan_dft_c2r_2d(mgalz,mgalx, matrix_2d_comp,matrix_2d_real, FFTW_PATIENT )
-    end subroutine fft_plan_dp
-
-    subroutine fft_plan_sp
-        complex(C_FLOAT_COMPLEX), dimension(mgalx) :: vector_x
-        complex(C_FLOAT_COMPLEX), dimension(mgalz) :: vector_z
-        complex(C_FLOAT_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
-        real   (C_FLOAT        ), dimension(mgalx    ,mgalz) :: matrix_2d_real
-
-
-        ! Generate plans for ifft in x and z seperately
-        ! These two are inplace transforms
-        plan_ifftx = fftwf_plan_dft_1d(mgalx, vector_x,vector_x, FFTW_BACKWARD, FFTW_PATIENT )
-        plan_ifftz = fftwf_plan_dft_1d(mgalz, vector_z,vector_z, FFTW_BACKWARD, FFTW_PATIENT )
-
-        ! Note: the r2c and c2r versions of the transform uses the hermitian symmetry
-        ! The symmetric part of the kx wavenumber is removed
-        ! Therefore the real data has size (mgalx, mgalz)
-        ! the complex data has size (mgalx/2+1, mgalz)
-        ! See FFTW documentation for more details:
-        ! https://www.fftw.org/fftw3_doc/One_002dDimensional-DFTs-of-Real-Data.html
-        ! https://www.fftw.org/fftw3_doc/Multi_002dDimensional-DFTs-of-Real-Data.html#Multi_002dDimensional-DFTs-of-Real-Data
-        ! https://www.fftw.org/fftw3_doc/Reversing-array-dimensions.html
-        plan_fft2  = fftwf_plan_dft_r2c_2d(mgalz,mgalx, matrix_2d_real,matrix_2d_comp, FFTW_PATIENT )
-        plan_ifft2 = fftwf_plan_dft_c2r_2d(mgalz,mgalx, matrix_2d_comp,matrix_2d_real, FFTW_PATIENT )
-    end subroutine fft_plan_sp
+    end subroutine fft_plan
 
 
     ! subroutine zeropad_2d( matrix_in, matrix_out )
@@ -99,14 +65,14 @@ contains
     !               the fourier coefficients at a single y plane padded with
     !               zeros for the high frequencies
     subroutine zeropad_2d( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mgalx/2+1,mgalz) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mgalx/2+1,mgalz) :: matrix_out
 
         integer :: nkx, nkz, nposkz, nnegkz, nx, nz
 
 
         ! initialize output matrix to 0
-        matrix_out = (0.0_cp, 0.0_cp)
+        matrix_out = (0.0_dp, 0.0_dp)
 
         nkx = mxf
         nkz = mzf
@@ -134,8 +100,8 @@ contains
     !               the fourier coefficients at a single y plane with zero pad
     !               and kx < 0 wavenumbers removed
     subroutine removezeropad_2d( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mgalx/2+1,mgalz) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mxf,mzf) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mgalx/2+1,mgalz) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mxf,mzf) :: matrix_out
 
         integer :: nkx, nkz, nposkz, nnegkz, nx, nz
 
@@ -170,12 +136,12 @@ contains
     !               for the high kx wavenumbers, and kx now contains the full
     !               range while kz only contains the non-negative wavenumbers
     subroutine zeropad_x( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mgalx, nkz_pos) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mgalx, nkz_pos) :: matrix_out
 
 
         ! initialize to 0
-        matrix_out = (0.0_cp, 0.0_cp)
+        matrix_out = (0.0_dp, 0.0_dp)
 
         ! kx >= 0, kz >= 0
         ! exact 1 to 1 mapping
@@ -205,14 +171,14 @@ contains
     !               to exchange the kx and kz dimesions for improved indexing
     !               effeciency
     subroutine zeropad_z( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mgalz,nkx_pos) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mgalz,nkx_pos) :: matrix_out
 
         integer :: ii
 
 
         ! initialize to 0
-        matrix_out = (0.0_cp, 0.0_cp)
+        matrix_out = (0.0_dp, 0.0_dp)
 
         DO ii = 1,nkx_pos
             ! kx >= 0, kz >= 0
@@ -237,18 +203,18 @@ contains
     !               and high wavenumber zero padding removed, and with
     !               normalization factor applied
     subroutine fft2( matrix_in, matrix_out )
-        real   (kind=cp), intent( in), dimension(mgalx,mgalz) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mxf,mzf) :: matrix_out
+        real   (kind=dp), intent( in), dimension(mgalx,mgalz) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mxf,mzf) :: matrix_out
 
-        real   (kind=cp), dimension(mgalx,mgalz) :: temp1
-        complex(kind=cp), dimension(mgalx/2+1,mgalz) :: temp2
+        real   (kind=dp), dimension(mgalx,mgalz) :: temp1
+        complex(kind=dp), dimension(mgalx/2+1,mgalz) :: temp2
 
 
         temp1 = matrix_in
         call fftw_execute_dft_r2c(plan_fft2, temp1, temp2)
         call removezeropad_2d( temp2, matrix_out )
         ! normalization factor
-        matrix_out = matrix_out/real(mgalx,cp)/real(mgalz,cp)
+        matrix_out = matrix_out/real(mgalx,dp)/real(mgalz,dp)
     end subroutine fft2
 
 
@@ -261,10 +227,10 @@ contains
     !   matrix_out: [double/single, size (mgalx,mgalz), Output]
     !               physical domain data
     subroutine ifft2( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
-        real   (kind=cp), intent(out), dimension(mgalx,mgalz) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
+        real   (kind=dp), intent(out), dimension(mgalx,mgalz) :: matrix_out
 
-        complex(kind=cp), dimension(mgalx/2+1,mgalz) :: temp
+        complex(kind=dp), dimension(mgalx/2+1,mgalz) :: temp
 
 
         call zeropad_2d( matrix_in, temp )
@@ -282,8 +248,8 @@ contains
     !   matrix_out: [double/single complex, size (mgalx, nkz_pos), Output]
     !               ifft in x only, for the non-negative kz wavenumbers
     subroutine ifftx( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mgalx, nkz_pos) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mgalx, nkz_pos) :: matrix_out
 
         integer :: ii
 
@@ -310,8 +276,8 @@ contains
     !               kx dimension with the z dimension for improved indexing
     !               effeciency
     subroutine ifftz( matrix_in, matrix_out )
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
-        complex(kind=cp), intent(out), dimension(mgalz,nkx_pos) :: matrix_out
+        complex(kind=dp), intent( in), dimension(mxf,mzf) :: matrix_in
+        complex(kind=dp), intent(out), dimension(mgalz,nkx_pos) :: matrix_out
 
         integer :: ii
 
@@ -325,5 +291,4 @@ contains
     end subroutine ifftz
 
 
-
-end module fourier
+end module fourier_dp

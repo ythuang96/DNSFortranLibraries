@@ -20,7 +20,6 @@ module ComputeTriadicProjection
 contains
     subroutine compute_Pkx_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, Px_kx, Py_kx, Pz_kx, Px_kz, Py_kz, Pz_kz)
         use ComputeForcing, only: compute_forcing_meansubtract
-        use fourier, only: ifftx, ifftz
         ! Input/Output
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         integer, intent(in) :: yplane
@@ -61,7 +60,7 @@ contains
     !   Px_kx, Py_kx, Pz_kx: [double/single complex, Size (nkx_pos,nkx_full), Output]
     !                        The computed projection coefficients
     subroutine compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
-        use fourier, only: ifftz
+        use FFT_PRECISION_CONTROL, only: ifftz
         use wavenumbers, only: kx_derivative, kz_derivative
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
@@ -178,7 +177,7 @@ contains
     !   Px_kz, Py_kz, Pz_kz: [double complex, Size (nkz_pos,nkz_full), Output]
     !                        The computed projection coefficients
     subroutine compute_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kz, Py_kz, Pz_kz)
-        use fourier, only: ifftx
+        use FFT_PRECISION_CONTROL, only: ifftx
         use wavenumbers, only: kx_derivative, kz_derivative
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
@@ -290,7 +289,7 @@ contains
     !   matrix_out: [double complex, size (mgalx, nkz_full), Output]
     !               ifft in x only, for the both positive and negative kz wavenumbers
     subroutine ifftx_fillnegkz( matrix_in, matrix_out )
-        use fourier, only: ifftx
+        use FFT_PRECISION_CONTROL, only: ifftx
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
         complex(kind=cp), intent(out), dimension(mgalx, nkz_full) :: matrix_out
 
@@ -314,7 +313,7 @@ contains
     !               kx dimension with the z dimension for improved indexing
     !               effeciency
     subroutine ifftz_fillnegkx( matrix_in, matrix_out )
-        use fourier, only: ifftz
+        use FFT_PRECISION_CONTROL, only: ifftz
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: matrix_in
         complex(kind=cp), intent(out), dimension(mgalz, nkx_full) :: matrix_out
 
