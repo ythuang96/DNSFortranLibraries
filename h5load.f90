@@ -4,7 +4,7 @@ module h5load
     use hdf5
     implicit none
     private
-    include 'parameters'
+#   include "parameters"
 
     public :: h5load_R1, h5loadVelocities
 

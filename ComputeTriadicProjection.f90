@@ -4,7 +4,7 @@ module ComputeTriadicProjection
 
     implicit none
     private
-    include 'parameters'
+#   include "parameters"
 
     ! Global Timer Variables
     real(kind=dp) :: timer_total, timer_loop, timer_read, timer_distribute, timer_dy, &

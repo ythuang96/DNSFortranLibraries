@@ -3,7 +3,7 @@ module fourier
     use types, only: sp, dp
     implicit none
     private
-    include 'parameters'
+#   include "parameters"
     include 'fftw3.f03'
 
     type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2

@@ -2,7 +2,7 @@ module wavenumbers
     use types, only: sp, dp
     implicit none
     private
-    include 'parameters'
+#   include "parameters"
 
     real(kind=cp) :: kx_full, kx_pos, kz_full, kz_pos
     common /wave/ kx_full(nkx_full), kx_pos(nkx_pos), &

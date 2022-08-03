@@ -3,7 +3,7 @@ module parallelization
     use mpi
     implicit none
     private
-    include 'parameters'
+#   include "parameters"
 
     public :: pointers, distribute_velocity, change_xyplane2xzplane
 

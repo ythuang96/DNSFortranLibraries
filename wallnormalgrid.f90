@@ -2,7 +2,7 @@ module wallnormalgrid
     use types, only: sp, dp
     implicit none
     private
-    include 'parameters'
+#   include "parameters"
 
     public :: prepare_grid, d_dy_complexvector
 
