@@ -6,10 +6,75 @@ module h5save
     private
 #   include "parameters"
 
-    public :: h5save_C2, h5save_R2, h5save_C3P
+    public :: h5save_R, h5save_C2, h5save_R2, h5save_C3P
 
 
 contains
+    ! subroutine h5save_R( filename, varname, scalar )
+    ! save a real number to h5 file
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name saved in h5
+    !   scalar  : [double/single scalar, Input] data to be saved
+    ! The following standard for complex variables are used:
+    ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
+    ! (one group with two datasets)
+    ! Same as my matlab h5 libaries
+    subroutine h5save_R( filename, varname, scalar )
+        character(len=*), intent(in) :: filename, varname
+        real(kind=cp), intent(in) :: scalar
+
+        character(len=100) :: dset_name ! dataset name
+        integer(HSIZE_T), dimension(1) :: data_dim ! data dimensions
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id  ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: dset_id ! dataset id
+
+
+        logical :: file_exists
+
+        data_dim = 1
+
+
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Check if file exist
+        INQUIRE(FILE=filename, EXIST=file_exists)
+        if ( file_exists ) then
+            ! If file already exist, then open file with read and write access
+            call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        else
+            ! Create new file
+            CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
+        endif
+
+
+        dset_name = varname
+        ! Create dataspace with rank 0 and size 1
+        CALL h5screate_simple_f(0, data_dim, dspace_id, error)
+        ! Create double/single precision dataset with path '/var' and write data
+        if ( cp .eq. dp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, scalar, data_dim, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, scalar, data_dim, error)
+        endif
+        ! Close dataset
+        CALL h5dclose_f(dset_id, error)
+        ! Close dataspace
+        CALL h5sclose_f(dspace_id, error)
+
+
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+    end subroutine h5save_R
+
+
     ! subroutine h5save_C2( filename, varname, matrix )
     ! save a complex rank 2 matrix to h5 file
     ! Arguments:
