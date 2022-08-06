@@ -9,7 +9,7 @@ module wavenumbers
                   kz_full(nkz_full), kz_pos(nkz_pos)
     save /wave/
 
-    public :: generate_wavenumbers, kx_derivative, kz_derivative
+    public :: generate_wavenumbers, kx_derivative, kz_derivative, truncate_kx_2D, truncate_kx_3D
 
 
 contains
@@ -102,6 +102,66 @@ contains
     end function kz_derivative
 
 
+    ! subroutine truncate_kx_2D( matrix )
+    ! This function truncate the data in kx by setting all data with kx wavenumber
+    ! greater than kx_max_truncate to 0 (kx = kx_max_truncate is retained)
+    ! If kx_max_truncate < max(kx_pos) then this function does nothing
+    !
+    ! Arguments:
+    !   matrix : [double/single complex, size (mxf,mzf), Input/Output]
+    !            Any Forier domain data at a single y plane
+    subroutine truncate_kx_2D( matrix )
+        complex(kind=cp), intent(inout), dimension(mxf, mzf) :: matrix
+
+        real(kind=cp) :: kx_max
+        integer :: loc(1), ind
+
+
+        ! Max value in the kx wavenumber vector
+        kx_max = maxval(kx_pos)
+
+        ! Truncate data if kx_max_truncate is smaller than kx_max
+        ! Otherwise, no truncation is needed
+        if (kx_max_truncate .lt. kx_max) then
+            ! find the index where kx_pos if first larger than kx_max_truncate
+            loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
+            ind = loc(1)
+
+            ! set data to 0 for kx greater than the set truncation point
+            matrix( ind:mxf, : ) = (0.0_cp, 0.0_cp)
+        endif
+    end subroutine truncate_kx_2D
+
+
+    ! subroutine truncate_kx_3D( matrix )
+    ! This function truncate the data in kx by setting all data with kx wavenumber
+    ! greater than kx_max_truncate to 0 (kx = kx_max_truncate is retained)
+    ! If kx_max_truncate < max(kx_pos) then this function does nothing
+    !
+    ! Arguments:
+    !   matrix : [double/single complex, size (mxf,mzf,myf), Input/Output]
+    !            Any Forier domain data at a all y planes
+    subroutine truncate_kx_3D( matrix )
+        complex(kind=cp), intent(inout), dimension(mxf, mzf, myf) :: matrix
+
+        real(kind=cp) :: kx_max
+        integer :: loc(1), ind
+
+
+        ! Max value in the kx wavenumber vector
+        kx_max = maxval(kx_pos)
+
+        ! Truncate data if kx_max_truncate is smaller than kx_max
+        ! Otherwise, no truncation is needed
+        if (kx_max_truncate .lt. kx_max) then
+            ! find the index where kx_pos if first larger than kx_max_truncate
+            loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
+            ind = loc(1)
+
+            ! set data to 0 for kx greater than the set truncation point
+            matrix( ind:mxf, :, : ) = (0.0_cp, 0.0_cp)
+        endif
+    end subroutine truncate_kx_3D
 
 
 end module wavenumbers
