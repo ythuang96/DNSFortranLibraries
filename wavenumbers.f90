@@ -122,7 +122,7 @@ contains
         integer :: loc(1), ind
 
 
-        if ( onoff .eq. .true. ) then
+        if ( onoff .eqv. .true. ) then
             ! Max value in the kx wavenumber vector
             kx_max = maxval(kx_pos)
 
@@ -160,7 +160,7 @@ contains
         integer :: loc(1), ind
 
 
-        if ( onoff .eq. .true. ) then
+        if ( onoff .eqv. .true. ) then
             ! Max value in the kx wavenumber vector
             kx_max = maxval(kx_pos)
 
