@@ -23,7 +23,7 @@ contains
     !                      mean subtracted non-linear forcing at a single y plane
     subroutine compute_forcing_meansubtract(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
         use FFT_PRECISION_CONTROL, only: ifft2, fft2
-        use wavenumbers, only: kx_derivative, kz_derivative
+        use wavenumbers, only: kx_derivative, kz_derivative, truncate_kx_2D
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         complex(kind=cp), intent(out), dimension(mxf,mzf) :: fxf,fyf,fzf
         integer, intent(in) :: yplane
@@ -59,6 +59,8 @@ contains
         call fft2( f, fxf )
         ! Mean subtract
         fxf(1,1) = fxf(1,1) - fx00(yplane)
+        ! kx truncation
+        call truncate_kx_2D( fxf, truncate_kx_forcing )
 
         ! ----------------------------- Compute fy -----------------------------
         ! Compute the 3 derivatives of v
@@ -71,6 +73,8 @@ contains
         call fft2( f, fyf )
         ! Mean subtract
         fyf(1,1) = fyf(1,1) - fy00(yplane)
+        ! kx truncation
+        call truncate_kx_2D( fyf, truncate_kx_forcing )
 
         ! ----------------------------- Compute fz -----------------------------
         ! Compute the 3 derivatives of w
@@ -83,6 +87,8 @@ contains
         call fft2( f, fzf )
         ! Mean subtract
         fzf(1,1) = fzf(1,1) - fz00(yplane)
+        ! kx truncation
+        call truncate_kx_2D( fzf, truncate_kx_forcing )
 
     end subroutine compute_forcing_meansubtract
 

@@ -114,7 +114,7 @@ contains
     !            turn on or turn off truncation
     !            if set to false, no truncation is performed regardless of the parameter kx_max_truncate
     !            if set to true , truncation is performed if kx_max_truncate < kx_max
-    subroutine truncate_kx_2D( matrix )
+    subroutine truncate_kx_2D( matrix, onoff)
         complex(kind=cp), intent(inout), dimension(mxf, mzf) :: matrix
         logical, intent(in) :: onoff
 
