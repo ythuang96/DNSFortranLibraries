@@ -6,7 +6,7 @@ module h5save
     private
 #   include "parameters"
 
-    public :: check_filename, h5save_R, h5save_C2, h5save_R2, h5save_C3P
+    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2, h5save_C3P
 
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
@@ -61,6 +61,88 @@ contains
         endif
 
     end subroutine check_filename
+
+
+    ! subroutine h5save_logical( filename, varname, logicvar )
+    ! save a logical to h5 file by saving as a "true" or "false" string
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name saved in h5
+    !   logicvar: [logical, Input] logical variable to be saved
+    subroutine h5save_logical( filename, varname, logicvar )
+        character(len=*), intent(in) :: filename, varname
+        logical, intent(in) :: logicvar
+
+        if ( logicvar .eqv. .true. ) then
+            call h5save_string( filename, varname, "true"  )
+        else if ( logicvar .eqv. .false. ) then
+            call h5save_string( filename, varname, "false" )
+        endif
+
+    end subroutine h5save_logical
+
+
+    ! subroutine h5save_string( filename, varname, string )
+    ! save a string to h5 file
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name saved in h5
+    !   string  : [string, Input] single string to be saved
+    subroutine h5save_string( filename, varname, string )
+        character(len=*), intent(in) :: filename, varname
+        character(len=*), intent(in) :: string
+
+        character(len=100) :: dset_name ! dataset name
+
+        INTEGER(SIZE_T)  :: slength ! string length
+        integer(HSIZE_T), dimension(1) :: data_dim ! data dimensions
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id   ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: dset_id   ! dataset id
+        INTEGER(HID_T) :: filetype  ! custom type for the fixed length string
+
+        logical :: file_exists
+
+
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Check if file exist
+        INQUIRE(FILE=filename, EXIST=file_exists)
+        if ( file_exists ) then
+            ! If file already exist, then open file with read and write access
+            call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        else
+            ! Create new file
+            CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
+        endif
+
+        ! Get string length
+        slength = LEN( string )
+        ! Create string type with length slenght from the single length tyupe H5T_FORTRAN_S1
+        CALL H5TCOPY_F(H5T_FORTRAN_S1,filetype, error)
+        CALL H5TSET_SIZE_F(filetype, slength, error)
+
+        ! String array of size 1 (single string)
+        data_dim = 1
+
+        dset_name = varname
+        ! Create dataspace with rank 0 and size 1 (single string)
+        CALL h5screate_simple_f(0, data_dim, dspace_id, error)
+        ! Create string dataset with path '/var' and write data
+        CALL h5dcreate_f(file_id, dset_name, filetype, dspace_id, dset_id, error)
+        CALL h5dwrite_f(dset_id,  filetype, string, data_dim, error)
+        ! Close dataset
+        CALL h5dclose_f(dset_id, error)
+        ! Close dataspace
+        CALL h5sclose_f(dspace_id, error)
+
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+    end subroutine h5save_string
 
 
     ! subroutine h5save_R( filename, varname, scalar )
