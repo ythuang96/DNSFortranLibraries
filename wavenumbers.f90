@@ -110,25 +110,32 @@ contains
     ! Arguments:
     !   matrix : [double/single complex, size (mxf,mzf), Input/Output]
     !            Any Forier domain data at a single y plane
+    !   onoff  : [logical]
+    !            turn on or turn off truncation
+    !            if set to false, no truncation is performed regardless of the parameter kx_max_truncate
+    !            if set to true , truncation is performed if kx_max_truncate < kx_max
     subroutine truncate_kx_2D( matrix )
         complex(kind=cp), intent(inout), dimension(mxf, mzf) :: matrix
+        logical, intent(in) :: onoff
 
         real(kind=cp) :: kx_max
         integer :: loc(1), ind
 
 
-        ! Max value in the kx wavenumber vector
-        kx_max = maxval(kx_pos)
+        if ( onoff .eq. .true. ) then
+            ! Max value in the kx wavenumber vector
+            kx_max = maxval(kx_pos)
 
-        ! Truncate data if kx_max_truncate is smaller than kx_max
-        ! Otherwise, no truncation is needed
-        if (kx_max_truncate .lt. kx_max) then
-            ! find the index where kx_pos if first larger than kx_max_truncate
-            loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
-            ind = loc(1)
+            ! Truncate data if kx_max_truncate is smaller than kx_max
+            ! Otherwise, no truncation is needed
+            if (kx_max_truncate .lt. kx_max) then
+                ! find the index where kx_pos if first larger than kx_max_truncate
+                loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
+                ind = loc(1)
 
-            ! set data to 0 for kx greater than the set truncation point
-            matrix( ind:mxf, : ) = (0.0_cp, 0.0_cp)
+                ! set data to 0 for kx greater than the set truncation point
+                matrix( ind:mxf, : ) = (0.0_cp, 0.0_cp)
+            endif
         endif
     end subroutine truncate_kx_2D
 
@@ -141,25 +148,32 @@ contains
     ! Arguments:
     !   matrix : [double/single complex, size (mxf,mzf,myf), Input/Output]
     !            Any Forier domain data at a all y planes
-    subroutine truncate_kx_3D( matrix )
+    !   onoff  : [logical]
+    !            turn on or turn off truncation
+    !            if set to false, no truncation is performed regardless of the parameter kx_max_truncate
+    !            if set to true , truncation is performed if kx_max_truncate < kx_max
+    subroutine truncate_kx_3D( matrix , onoff)
         complex(kind=cp), intent(inout), dimension(mxf, mzf, myf) :: matrix
+        logical, intent(in) :: onoff
 
         real(kind=cp) :: kx_max
         integer :: loc(1), ind
 
 
-        ! Max value in the kx wavenumber vector
-        kx_max = maxval(kx_pos)
+        if ( onoff .eq. .true. ) then
+            ! Max value in the kx wavenumber vector
+            kx_max = maxval(kx_pos)
 
-        ! Truncate data if kx_max_truncate is smaller than kx_max
-        ! Otherwise, no truncation is needed
-        if (kx_max_truncate .lt. kx_max) then
-            ! find the index where kx_pos if first larger than kx_max_truncate
-            loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
-            ind = loc(1)
+            ! Truncate data if kx_max_truncate is smaller than kx_max
+            ! Otherwise, no truncation is needed
+            if (kx_max_truncate .lt. kx_max) then
+                ! find the index where kx_pos if first larger than kx_max_truncate
+                loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
+                ind = loc(1)
 
-            ! set data to 0 for kx greater than the set truncation point
-            matrix( ind:mxf, :, : ) = (0.0_cp, 0.0_cp)
+                ! set data to 0 for kx greater than the set truncation point
+                matrix( ind:mxf, :, : ) = (0.0_cp, 0.0_cp)
+            endif
         endif
     end subroutine truncate_kx_3D
 
