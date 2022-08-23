@@ -19,7 +19,7 @@ module ComputeTriadicProjection
 
 contains
     subroutine compute_Pkx_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, Px_kx, Py_kx, Pz_kx, Px_kz, Py_kz, Pz_kz)
-        use ComputeForcing, only: compute_forcing_meansubtract
+        use ComputeForcing, only: compute_forcing
         ! Input/Output
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         integer, intent(in) :: yplane
@@ -31,7 +31,7 @@ contains
 
         ! Compute forcing
         call timer_continue( timer_f )
-        call compute_forcing_meansubtract(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
+        call compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
         call timer_stop( timer_f )
 
         ! Compute P_kx

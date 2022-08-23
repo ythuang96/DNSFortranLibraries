@@ -5,12 +5,12 @@ module ComputeForcing
     private
 #   include "parameters"
 
-    public :: compute_forcing_meansubtract
+    public :: compute_forcing
 
 contains
-    ! subroutine compute_forcing_meansubtract(uf,vf,wf,dudyf,dvdyf,dwdyf, fxf,fyf,fzf, yplane)
+    ! subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, fxf,fyf,fzf, yplane)
     ! This function computes the non-linear forcing fxf, fyf, fzf at a given y
-    ! plan then subtracts the mean
+    ! plan then subtracts the mean (mean subtraction in controlled by the logical flag meansubtract1D_forcing )
     !
     ! Arguments:
     !   uf,vf,wf:          [double/single complex, Size (mxf,mzf), Input]
@@ -20,8 +20,8 @@ contains
     !   yplane :           [Integer, Input]
     !                      index of this current y plane
     !   fxf,fyf,fzf:       [double/single complex, Size (mxf,mzf), Output]
-    !                      mean subtracted non-linear forcing at a single y plane
-    subroutine compute_forcing_meansubtract(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
+    !                      (mean subtracted) non-linear forcing at a single y plane
+    subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
         use FFT_PRECISION_CONTROL, only: ifft2, fft2
         use wavenumbers, only: kx_derivative, kz_derivative, truncate_kx_2D
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
@@ -58,7 +58,9 @@ contains
         ! fft2 of fx back into the Fourier space
         call fft2( f, fxf )
         ! Mean subtract
-        fxf(1,1) = fxf(1,1) - fx00(yplane)
+        if ( meansubtract1D_forcing .eqv. .true. ) then
+            fxf(1,1) = fxf(1,1) - fx00(yplane)
+        endif
         ! kx truncation
         call truncate_kx_2D( fxf, truncate_kx_forcing )
 
@@ -72,7 +74,9 @@ contains
         ! fft2 of fy back into the Fourier space
         call fft2( f, fyf )
         ! Mean subtract
-        fyf(1,1) = fyf(1,1) - fy00(yplane)
+        if ( meansubtract1D_forcing .eqv. .true. ) then
+            fyf(1,1) = fyf(1,1) - fy00(yplane)
+        endif
         ! kx truncation
         call truncate_kx_2D( fyf, truncate_kx_forcing )
 
@@ -86,11 +90,13 @@ contains
         ! fft2 of fz back into the Fourier space
         call fft2( f, fzf )
         ! Mean subtract
-        fzf(1,1) = fzf(1,1) - fz00(yplane)
+        if ( meansubtract1D_forcing .eqv. .true. ) then
+            fzf(1,1) = fzf(1,1) - fz00(yplane)
+        endif
         ! kx truncation
         call truncate_kx_2D( fzf, truncate_kx_forcing )
 
-    end subroutine compute_forcing_meansubtract
+    end subroutine compute_forcing
 
 
 end module ComputeForcing
