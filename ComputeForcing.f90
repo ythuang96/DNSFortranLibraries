@@ -61,6 +61,10 @@ contains
         if ( meansubtract1D_forcing .eqv. .true. ) then
             fxf(1,1) = fxf(1,1) - fx00(yplane)
         endif
+        ! kx = 0 subtract
+        if ( subtract_kx0_forcing .eqv. .true. ) then
+            fxf(1,:) = (0.0_cp, 0.0_cp)
+        endif
         ! kx truncation
         call truncate_kx_2D( fxf, truncate_kx_forcing )
 
@@ -77,6 +81,10 @@ contains
         if ( meansubtract1D_forcing .eqv. .true. ) then
             fyf(1,1) = fyf(1,1) - fy00(yplane)
         endif
+        ! kx = 0 subtract
+        if ( subtract_kx0_forcing .eqv. .true. ) then
+            fyf(1,:) = (0.0_cp, 0.0_cp)
+        endif
         ! kx truncation
         call truncate_kx_2D( fyf, truncate_kx_forcing )
 
@@ -92,6 +100,10 @@ contains
         ! Mean subtract
         if ( meansubtract1D_forcing .eqv. .true. ) then
             fzf(1,1) = fzf(1,1) - fz00(yplane)
+        endif
+        ! kx = 0 subtract
+        if ( subtract_kx0_forcing .eqv. .true. ) then
+            fzf(1,:) = (0.0_cp, 0.0_cp)
         endif
         ! kx truncation
         call truncate_kx_2D( fzf, truncate_kx_forcing )
