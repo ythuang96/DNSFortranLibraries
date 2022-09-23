@@ -7,6 +7,7 @@ module h5save
 #   include "parameters"
 
     public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2, h5save_C3P
+    public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3
 
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
@@ -502,6 +503,226 @@ contains
         CALL h5close_f(error)
 
     end subroutine h5save_C3P
+
+
+    ! subroutine h5save_C3Partial_Init( filename, varname, full_data_dim )
+    ! initialize a complex rank 3 matrix to h5 file in preparation for partial data saving
+    !
+    ! Arguments:
+    !   filename     : [string, Input] h5 filename with path
+    !   varname      : [string, Input] variable name
+    !   full_data_dim: [integer, size 3, Input] the dimension of the full data matrix
+    !
+    ! Note:
+    !   This function needs to be called once and only once before any partial saving is performed
+    subroutine h5save_C3Partial_Init( filename, varname, full_data_dim)
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        integer, intent(in), dimension(3) :: full_data_dim
+
+        integer(HSIZE_T), dimension(3) :: full_data_dim2
+        character(len=100) :: dset_name ! dataset name
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id   ! file id
+        INTEGER(HID_T) :: group_id  ! group id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: dset_id   ! dataset id
+
+        logical :: file_exists
+
+
+        ! Integer type conversion for the full data dimension
+        full_data_dim2 = INT( full_data_dim, HSIZE_T)
+
+        ! ------------------------ Setup File and Group ------------------------
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Check if file exist
+        INQUIRE(FILE=filename, EXIST=file_exists)
+        if ( file_exists ) then
+            ! If file already exist, then open file with read and write access
+            call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        else
+            ! Create new file
+            CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
+        endif
+
+        ! Create a group in the HDF5 file with the variable name
+        CALL h5gcreate_f(file_id, varname, group_id, error)
+        ! Close the group
+        CALL h5gclose_f(group_id, error)
+
+        ! ----------------------------- Real part -----------------------------
+        dset_name = varname // "/" // varname // "_REAL"
+
+        ! Create disk dataspace with rank 3 and size full_data_dim
+        call h5screate_simple_f(3, full_data_dim2, dspace_id, error)
+
+        ! Create double/single precision dataset with path '/var/var_REAL'
+        if ( cp .eq. dp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+        else if ( cp .eq. sp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+        endif
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! --------------------------- Imaginary part ---------------------------
+        dset_name = varname // "/" // varname // "_IMAG"
+
+        ! Create disk dataspace with rank 3 and size full_data_dim
+        call h5screate_simple_f(3, full_data_dim2, dspace_id, error)
+
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        if ( cp .eq. dp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+        else if ( cp .eq. sp ) then
+            call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+        endif
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! ------------------------------ Clean up ------------------------------
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+
+    end subroutine h5save_C3Partial_Init
+
+
+    ! subroutine h5save_C3Partial_SingleDim3( filename, varname, matrix, dim3index )
+    ! save a complex rank 2 matrix to h5 file as a single plane in the complex rank 3 matrix
+    !
+    ! Arguments:
+    !   filename : [string, Input] h5 filename with path
+    !   varname  : [string, Input] variable name
+    !   matrix   : [double/single complex 2d matrix, Input] data to be saved
+    !   dim3index: [integer, Input] the index for the third dimension
+    !
+    ! Note:
+    !   The variable in this h5 file must already be initilaized using the function h5save_C3Partial_Init
+    subroutine h5save_C3Partial_SingleDim3( filename, varname, matrix, dim3index)
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=cp), intent(in), dimension(:,:) :: matrix
+        integer, intent(in) :: dim3index
+
+        character(len=100) :: dset_name ! dataset name
+
+        ! data dimensions for full data and slice data
+        integer(HSIZE_T), dimension(2) :: matrix_dim
+        integer(HSIZE_T), dimension(3) :: slice_data_dim
+        integer(HSIZE_T), dimension(3) :: slabOffset ! hyperslab offset
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id   ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: mspace_id ! memeory space id
+        INTEGER(HID_T) :: dset_id   ! dataset id
+
+
+        ! get matrix dimension
+        matrix_dim = shape(matrix)
+        slice_data_dim(1) = matrix_dim(1)
+        slice_data_dim(2) = matrix_dim(2)
+        slice_data_dim(3) = 1
+
+        ! ------------------------ Setup File and Group ------------------------
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Open file with read and write access
+        call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        ! Group is already created by h5save_C3Partial_Init
+
+        ! ----------------------------- Real part -----------------------------
+        dset_name = varname // "/" // varname // "_REAL"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim3index (offset dim3index-1)
+        slabOffset = (/ 0, 0, dim3index - 1 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 3 and size slice_data_dim
+        call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        if ( cp .eq. dp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        else if ( cp .eq. sp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        endif
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! --------------------------- Imaginary part ---------------------------
+        dset_name = varname // "/" // varname // "_IMAG"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim3index (offset dim3index-1)
+        slabOffset = (/ 0, 0, dim3index - 1 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 3 and size slice_data_dim
+        call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create double/single precision dataset with path '/var/var_IMAG' and write data
+        if ( cp .eq. dp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        else if ( cp .eq. sp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        endif
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! ------------------------------ Clean up ------------------------------
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+
+    end subroutine h5save_C3Partial_SingleDim3
 
 end module h5save
 
