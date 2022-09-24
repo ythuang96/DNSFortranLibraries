@@ -61,6 +61,58 @@ contains
     end subroutine pointers
 
 
+    ! subroutine pointers(jb,je,kb,ke)
+    ! This function divides the omega/time and physical z grid for all the processors
+    ! If the number of grid points are not divisible by the number of processors,
+    ! some processors will have an extra grid point
+    ! Arguments:
+    !   omb: [Integer, size numerop, Ouput] the      omega start index for each processor
+    !   ome: [Integer, size numerop, Ouput] the      omega end   index for each processor
+    !    zb: [Integer, size numerop, Ouput] the physical z start index for each processor
+    !    ze: [Integer, size numerop, Ouput] the physical z end   index for each processor
+    subroutine pointers2(omb,ome,zb,ze)
+        integer, intent(out), dimension(numerop) :: omb,ome,zb,ze
+        integer n,n1,n2
+
+
+        ! divide omega/time, each processor gets a few omega/time
+        n1=nom/numerop ! integer division, truncated towards 0
+        n2=nom-numerop*n1
+
+        omb(1)=1
+        do n = 1, n2
+            ! first n2 processors have n1+1 values
+            ome(n)  = omb(n)+n1
+            omb(n+1)= ome(n)+1
+        enddo
+        do n = n2+1, numerop-1
+            ! remaining processors get n1 values
+            ome(n)  = omb(n)+n1-1
+            omb(n+1)= ome(n)+1
+        enddo
+        ome(numerop) = omb(numerop) +n1-1
+
+
+        ! divide all physical z points, each processor will get a few z
+        n1=mgalz/numerop
+        n2=mgalz-numerop*n1
+
+        zb(1)=1
+        do n = 1, n2
+            ! first n2 processors have n1+1 planes
+            ze(n)  = zb(n)+n1
+            zb(n+1)= ze(n)+1
+        enddo
+        do n = n2+1, numerop-1
+            ! remaining processors get n1 planes
+            ze(n)  = zb(n)+n1-1
+            zb(n+1)= ze(n)+1
+        enddo
+        ze(numerop)=zb(numerop)+n1-1
+
+    end subroutine pointers2
+
+
     ! subroutine distribute_velocity( myid, sourceid, vel_full, vel_slice )
     ! This function distribute a velocity field from sourceid to each processor
     ! Each processor will get full xy planes (each get a few kz wavenumbers)
