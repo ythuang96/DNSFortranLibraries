@@ -9,108 +9,45 @@ module parallelization
 
 
 contains
-    ! subroutine pointers(jb,je,kb,ke)
-    ! This function divides the y and z grid for all the processors
-    ! If the number of y, z grid are not divisible by the number of processors,
-    ! some processors will have an extra grid point
+    ! subroutine pointers( begin_vec, end_vec, totalgridpoints )
+    ! This function divides a grid for all the processors
+    ! If the number of grid points are not divisible by the number of processors,
+    ! some processors will have one extra grid point
     ! Arguments:
-    !   jb: [Integer, size numerop, Ouput] the  y start index for each processor
-    !   je: [Integer, size numerop, Ouput] the  y end   index for each processor
-    !   kb: [Integer, size numerop, Ouput] the kz start index for each processor
-    !   je: [Integer, size numerop, Ouput] the kz end   index for each processor
-    subroutine pointers(jb,je,kb,ke)
-        integer, intent(out), dimension(numerop) :: jb, je, kb, ke
+    !   begin_vec      : [Integer, size numerop, Ouput] the start index for each processor
+    !   end_vec        : [Integer, size numerop, Ouput] the end   index for each processor
+    !   totalgridpoints: [Integer, Input] the total number of grid points for this coordinate
+    subroutine pointers( begin_vec, end_vec, totalgridpoints )
+        integer, intent(out), dimension(numerop) :: begin_vec, end_vec
+        integer, intent(in) :: totalgridpoints
+
         integer n,n1,n2
 
 
-        ! divide all the kx-kz planes, each processor will get a few y
-        n1=my/numerop ! integer division, truncated towards 0
-        n2=my-numerop*n1
+        ! divide all the points
+        n1 = totalgridpoints/numerop
+        ! integer division, truncated towards 0, this is the minimum amount of grid points each processor will get
+        n2 = totalgridpoints-numerop*n1 ! the first n2 processors will get one extra grid point
 
-        jb(1)=1
-        do n=1,n2
-            ! first n2 processors have n1+1 planes
-            je(n)  = jb(n)+n1
-            jb(n+1)= je(n)+1
-        enddo
-        do n=n2+1,numerop-1
-            ! remaining processors get n1 planes
-            je(n)=jb(n)+n1-1
-            jb(n+1)= je(n)+1
-        enddo
-        je(numerop)=jb(numerop)+n1-1
+        ! first processor starts at 1
+        begin_vec(1)=1
 
-
-        ! divide all the kx-y planes, each processor will get a few kz
-        n1=mzf/numerop
-        n2=mzf-numerop*n1
-
-        kb(1)=1
-        do n=1,n2
-            ! first n2 processors have n1+1 planes
-            ke(n)  = kb(n)+n1
-            kb(n+1)= ke(n)+1
+        ! first n2 processors have n1+1 pointss
+        do n = 1, n2
+            end_vec(n)     = begin_vec(n) + n1
+            begin_vec(n+1) = end_vec(n) + 1
         enddo
-        do n=n2+1,numerop-1
-            ! remaining processors get n1 planes
-            ke(n)=kb(n)+n1-1
-            kb(n+1)= ke(n)+1
+
+        ! remaining processors get n1 points
+        do n = n2+1, numerop-1
+            end_vec(n)     = begin_vec(n) + n1 - 1
+            begin_vec(n+1) = end_vec(n) + 1
         enddo
-        ke(numerop)=kb(numerop)+n1-1
+
+        ! last processor end point
+        end_vec(numerop) = begin_vec(numerop) + n1 - 1
 
     end subroutine pointers
-
-
-    ! subroutine pointers(jb,je,kb,ke)
-    ! This function divides the omega/time and physical z grid for all the processors
-    ! If the number of grid points are not divisible by the number of processors,
-    ! some processors will have an extra grid point
-    ! Arguments:
-    !   omb: [Integer, size numerop, Ouput] the      omega start index for each processor
-    !   ome: [Integer, size numerop, Ouput] the      omega end   index for each processor
-    !    zb: [Integer, size numerop, Ouput] the physical z start index for each processor
-    !    ze: [Integer, size numerop, Ouput] the physical z end   index for each processor
-    subroutine pointers2(omb,ome,zb,ze)
-        integer, intent(out), dimension(numerop) :: omb,ome,zb,ze
-        integer n,n1,n2
-
-
-        ! divide omega/time, each processor gets a few omega/time
-        n1=nom/numerop ! integer division, truncated towards 0
-        n2=nom-numerop*n1
-
-        omb(1)=1
-        do n = 1, n2
-            ! first n2 processors have n1+1 values
-            ome(n)  = omb(n)+n1
-            omb(n+1)= ome(n)+1
-        enddo
-        do n = n2+1, numerop-1
-            ! remaining processors get n1 values
-            ome(n)  = omb(n)+n1-1
-            omb(n+1)= ome(n)+1
-        enddo
-        ome(numerop) = omb(numerop) +n1-1
-
-
-        ! divide all physical z points, each processor will get a few z
-        n1=mgalz/numerop
-        n2=mgalz-numerop*n1
-
-        zb(1)=1
-        do n = 1, n2
-            ! first n2 processors have n1+1 planes
-            ze(n)  = zb(n)+n1
-            zb(n+1)= ze(n)+1
-        enddo
-        do n = n2+1, numerop-1
-            ! remaining processors get n1 planes
-            ze(n)  = zb(n)+n1-1
-            zb(n+1)= ze(n)+1
-        enddo
-        ze(numerop)=zb(numerop)+n1-1
-
-    end subroutine pointers2
 
 
     ! subroutine distribute_velocity( myid, sourceid, vel_full, vel_slice )
@@ -127,10 +64,10 @@ contains
     !              velocity data for each processor, full xy planes with a few kz
     subroutine distribute_velocity( myid, sourceid, vel_full, vel_slice )
         ! Global Pointers
-        integer :: jbeg,jend,kbeg,kend,jb,je,kb,ke,mmy,mmz
+        integer :: jbeg,jend,kbeg,kend,jb,je,kb,ke
         common /point/ jbeg(0:numerop-1),jend(0:numerop-1), &
                        kbeg(0:numerop-1),kend(0:numerop-1), &
-                       jb,je,kb,ke,mmy,mmz
+                       jb,je,kb,ke
         save /point/
         ! Input/Output
         integer, intent(in) :: myid, sourceid
@@ -210,10 +147,10 @@ contains
     !         all the data in a few xz planes for this processor (a few y grid points)
     subroutine change_xyplane2xzplane( xy, myid, xz )
         ! global pointer variables
-        integer :: jbeg,jend,kbeg,kend,jb,je,kb,ke,mmy,mmz
+        integer :: jbeg,jend,kbeg,kend,jb,je,kb,ke
         common /point/ jbeg(0:numerop-1),jend(0:numerop-1), &
                        kbeg(0:numerop-1),kend(0:numerop-1), &
-                       jb,je,kb,ke,mmy,mmz
+                       jb,je,kb,ke
         save /point/
         ! Input/outpus
         complex(kind=cp), intent( in), dimension(mxf,kb:ke,myf) :: xy

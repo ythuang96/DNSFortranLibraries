@@ -360,10 +360,10 @@ contains
     !   matrix  : [double/single complex 3d matrix, Input] data to be saved
     subroutine h5save_C3P( filename, varname, matrix)
         ! Global variables
-        integer jbeg,jend,kbeg,kend,jb,je,kb,ke,mmy,mmz
+        integer jbeg,jend,kbeg,kend,jb,je,kb,ke
         common /point/ jbeg(0:numerop-1),jend(0:numerop-1), &
                        kbeg(0:numerop-1),kend(0:numerop-1), &
-                       jb,je,kb,ke,mmy,mmz
+                       jb,je,kb,ke
         save /point/
         ! Inputs
         character(len=*), intent(in) :: filename, varname
