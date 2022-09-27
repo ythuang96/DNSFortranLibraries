@@ -7,8 +7,6 @@ module fourier_dp
     include 'fftw3.f03'
 
     type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2
-    common /fft_plan/ plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2
-    save   /fft_plan/
 
     public :: fft_plan, fft2, ifft2, ifftx, ifftz
 
@@ -23,11 +21,6 @@ contains
     ! plan_ifftz: inverse fft for z         complex vector size mgalz -> complex vector size mgalz
     ! plan_fft2 : fft in both x z           real matrix size mgalx,mgalz -> complex matrix size mgalx/2+1,mgalz
     ! plan_ifft2: inverse fft in both x z   complex matrix size mgalx/2+1,mgalz -> real matrix size mgalx,mgalz
-    !
-    ! These four plans are set as global variable that can be used by calling:
-    ! "type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2"
-    ! "common /fft_plan/ plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2"
-    ! "save   /fft_plan/"
     subroutine fft_plan
         complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_x
         complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_z
