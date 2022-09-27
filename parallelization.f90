@@ -5,7 +5,7 @@ module parallelization
     private
 #   include "parameters"
 
-    public :: pointers, distribute_velocity, change_dim2slice_to_dim3slice
+    public :: pointers, distribute_velocity_slicedim2, change_dim2slice_to_dim3slice
 
 
 contains
@@ -50,36 +50,41 @@ contains
     end subroutine pointers
 
 
-    ! subroutine distribute_velocity( myid, sourceid, vel_full, vel_slice )
+    ! subroutine distribute_velocity_slicedim2( myid, sourceid, vel_full, vel_slice )
     ! This function distribute a velocity field from sourceid to each processor
-    ! Each processor will get full xy planes (each get a few kz wavenumbers)
+    ! Each processor will get full data for dimension 1 and 3,
+    ! but only get a few grid points for dimension 2
     ! Arguments:
     !   myid:      [integer, Input]
     !              processor ID
     !   sourceid:  [integer, Input]
     !              the processor ID where the full data field is saved
-    !   vel_full:  [double/single complex, size (mxf,  mzf,myf), Input]
+    !   vel_full:  [double/single complex, size (size_dim1,size_dim2,size_dim3), Input]
     !              the full velocity field, read from h5, interpolated and normalized
-    !   vel_slice: [double/single complex, size (mxf,kb:ke,myf), Output]
-    !              velocity data for each processor, full xy planes with a few kz
-    subroutine distribute_velocity( myid, sourceid, vel_full, vel_slice )
-        ! Global Pointers
-        integer :: jbeg,jend,kbeg,kend,jb,je,kb,ke
-        common /point/ jbeg(0:numerop-1),jend(0:numerop-1), &
-                       kbeg(0:numerop-1),kend(0:numerop-1), &
-                       jb,je,kb,ke
-        save /point/
+    !   vel_slice: [double/single complex, size (size_dim1,b2:e2,size_dim3), Output]
+    !              velocity data for each processor, full data for dimension 1 and 3,
+    !              but only a few grid points for dimension 2
+    subroutine distribute_velocity_slicedim2( myid, sourceid, vel_full, vel_slice )
         ! Input/Output
         integer, intent(in) :: myid, sourceid
-        complex(kind=cp), intent( in), dimension(mxf,  mzf,myf) :: vel_full
-        complex(kind=cp), intent(out), dimension(mxf,kb:ke,myf) :: vel_slice
+        complex(kind=cp), intent( in), dimension(:,:,:) :: vel_full
+        complex(kind=cp), intent(out), dimension(:,:,:) :: vel_slice
+
+        ! Matrix sizes
+        integer, dimension(3) :: size_matrix
+        integer :: size_dim1, size_dim2, size_dim3
+
+        ! Pointers for dimension 2 distribution
+        integer :: b2v(0:numerop-1), e2v(0:numerop-1)
+        integer :: b2, e2
+
+        ! temp b2 e2 pointers for the target processor
+        integer :: b2_target, e2_target
 
         ! send/receive data size
         integer :: nsend, nreceive
         ! send/receive buffers
         real(kind=cp), dimension(:,:,:,:), allocatable :: send_buffer, receive_buffer
-        ! kb, ke for the target processor
-        integer :: kb_target, ke_target
         ! Loop index
         integer :: iproc
 
@@ -87,24 +92,42 @@ contains
         integer :: istat(MPI_STATUS_SIZE), ierr
 
 
+        ! --------------------- Get Full Matrix Dimensions ---------------------
+        size_matrix = shape(vel_full) ! Input matrix size
+        size_dim1   = size_matrix(1)  ! size of dimension 1
+        size_dim2   = size_matrix(2)  ! size of dimension 2
+        size_dim3   = size_matrix(3)  ! size of dimension 3
+
+
+        ! --------------------- Compute Dimension 2 Slices ---------------------
+        ! compute the vector pointers for dim 2
+        ! these vectors contain the begin and end indices for all processors
+        call pointers( b2v, e2v, size_dim2 ) ! dimension 2 begin and end indices
+        ! begin and end indices for the current processor
+        b2 = b2v(myid)
+        e2 = e2v(myid)
+
+
+        ! ----------------------- Send and Receive Data -----------------------
         if ( myid .eq. sourceid ) then
             ! if I am the source, then copy the data I need
-            vel_slice = vel_full(:,kb:ke,:)
+            vel_slice = vel_full(:,b2:e2,:)
 
             ! sourceid send data to each processor except for itself
-            ! each processor gets (mxf,kb_target:ke_target,myf) (full xy planes)
-            do iproc = numerop-1,0, -1
+            ! each processor gets (size_dim1,b2_target:e2_target,size_dim3)
+            ! (full dim 1 and 3 data, but only at a few dim 2 grid points)
+            do iproc = numerop-1, 0, -1
                 if ( iproc .ne. sourceid ) then ! no need to send data to itself
-                    ! kb, ke for the target processor
-                    kb_target = kbeg(iproc)
-                    ke_target = kend(iproc)
+                    ! b2, e2 for the target processor
+                    b2_target = b2v(iproc)
+                    e2_target = e2v(iproc)
                     ! number of data sent (*2 for real and imaginary parts)
-                    nsend = mxf*(ke_target-kb_target+1)*myf*2
+                    nsend = size_dim1 * (e2_target-b2_target+1) * size_dim3 * 2
 
                     ! allocate a buffer to contain both the real and imaginary parts
-                    ALLOCATE(send_buffer(mxf,kb_target:ke_target,myf,2))
-                    send_buffer(:,:,:,1) =  real( vel_full(:,kb_target:ke_target,:), cp)
-                    send_buffer(:,:,:,2) = aimag( vel_full(:,kb_target:ke_target,:) )
+                    ALLOCATE(send_buffer(size_dim1, b2_target:e2_target, size_dim3, 2))
+                    send_buffer(:,:,:,1) =  real( vel_full(:,b2_target:e2_target,:), cp)
+                    send_buffer(:,:,:,2) = aimag( vel_full(:,b2_target:e2_target,:) )
                     ! sourceid send data to iproc
                     if ( cp .eq. dp ) then
                         call MPI_SEND(send_buffer, nsend, MPI_DOUBLE_PRECISION, iproc, 0, MPI_COMM_WORLD, ierr )
@@ -118,9 +141,9 @@ contains
         else
             ! All other processors receive data from sourceid
             ! number of data received (*2 for real and imaginary parts)
-            nreceive = mxf*(ke-kb+1)*myf*2
+            nreceive = size_dim1 * (e2-b2+1) * size_dim3 * 2
             ! allocate a buffer to contain both the real and imaginary parts
-            ALLOCATE(receive_buffer(mxf,kb:ke,myf,2))
+            ALLOCATE(receive_buffer(size_dim1, b2:e2, size_dim3, 2))
             ! receive data from sourceid
             if ( cp .eq. dp ) then
                 call MPI_RECV(receive_buffer, nreceive, MPI_DOUBLE_PRECISION, sourceid, 0, MPI_COMM_WORLD, istat, ierr )
@@ -131,7 +154,7 @@ contains
             vel_slice = CMPLX( receive_buffer(:,:,:,1), receive_buffer(:,:,:,2), cp)
             DEALLOCATE(receive_buffer)
         endif
-    end subroutine distribute_velocity
+    end subroutine distribute_velocity_slicedim2
 
 
     ! subroutine change_dim2slice_to_dim3slice( dim2slice, myid, dim3slice )
