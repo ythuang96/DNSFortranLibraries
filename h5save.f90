@@ -6,7 +6,7 @@ module h5save
     private
 #   include "parameters"
 
-    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2, h5save_C3P
+    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2, h5save_C3Parallel_dim3
     public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3
 
     ! The following standard for complex variables are used:
@@ -348,25 +348,23 @@ contains
     end subroutine h5save_R2
 
 
-    ! subroutine h5save_C3P( filename, varname, matrix )
+    ! subroutine h5save_C3Parallel_dim3( filename, varname, myid, matrix )
     ! save a complex rank 3 matrix to h5 file in parallel.
+    ! with parallization in dimension 3 (Each processor has data for a few
+    ! dimension 3 grid points, while having all data for dimension 1 and 2.)
     !
-    ! Each processor has data for a few wall parallel planes. And the full data
-    ! has myf as the full third dimension. All processors should call this function.
+    ! All processors should call this function.
     !
     ! Arguments:
     !   filename: [string, Input] h5 filename with path
     !   varname : [string, Input] variable name
+    !   myid    : [integer, Input] processor ID
     !   matrix  : [double/single complex 3d matrix, Input] data to be saved
-    subroutine h5save_C3P( filename, varname, matrix)
-        ! Global variables
-        integer jbeg,jend,kbeg,kend,jb,je,kb,ke
-        common /point/ jbeg(0:numerop-1),jend(0:numerop-1), &
-                       kbeg(0:numerop-1),kend(0:numerop-1), &
-                       jb,je,kb,ke
-        save /point/
+    subroutine h5save_C3Parallel_dim3( filename, varname, myid, matrix)
+        use parallelization, only: pointers
         ! Inputs
         character(len=*), intent(in) :: filename, varname
+        integer, intent(in) :: myid
         complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
 
         character(len=100) :: dset_name ! dataset name
@@ -374,6 +372,7 @@ contains
         ! data dimensions for full data and slice data
         integer(HSIZE_T), dimension(3) :: full_data_dim, slice_data_dim
         integer(HSIZE_T), dimension(3) :: slabOffset ! hyperslab offset
+        integer :: dim3slice, dim3full
 
         integer :: error ! error flag
         INTEGER(HID_T) :: file_id   ! file id
@@ -385,13 +384,28 @@ contains
 
         logical :: file_exists
 
+        ! work assignment pointers for dimension 3
+        integer :: b3v(0:numerop-1), e3v(0:numerop-1)
+        integer :: b3, e3
 
-        ! get full matrix dimensions
-        full_data_dim = shape(matrix)
-        full_data_dim(3) = myf ! the third dimension should always be the y grid size
+        ! MPI variables
+        integer :: ierr
+
+
+        ! --------------------- Get Full Matrix Dimensions ---------------------
         ! get matrix dimension for the slices that this current processor has
         slice_data_dim = shape(matrix)
-        slice_data_dim(3) = je - jb + 1
+        dim3slice = slice_data_dim(3)
+        ! compute the full dimension 3 size by adding all the dimension 3 slice sizes
+        call MPI_ALLREDUCE(dim3slice, dim3full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
+        full_data_dim(1) = slice_data_dim(1)
+        full_data_dim(2) = slice_data_dim(2)
+        full_data_dim(3) = INT( dim3full, HID_T)
+
+        call pointers( b3v, e3v, dim3full)
+        b3 = b3v(myid)
+        e3 = e3v(myid)
+
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -423,8 +437,8 @@ contains
 
         ! Create disk dataspace with rank 3 and size full_data_dim
         call h5screate_simple_f(3, full_data_dim, dspace_id, error)
-        ! select that hyperlsab of the disk dataspace, which is the xz planes of this processor (offset jb-1)
-        slabOffset = (/ 0, 0, jb - 1 /)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes of this processor (offset b3-1)
+        slabOffset = (/ 0, 0, b3 - 1 /)
         call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
         ! Create memory dataspace with rank 3 and size slice_data_dim
         call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
@@ -462,8 +476,8 @@ contains
 
         ! Create disk dataspace with rank 3 and size full_data_dim
         call h5screate_simple_f(3, full_data_dim, dspace_id, error)
-        ! select that hyperlsab of the disk dataspace, which is the xz planes of this processor (offset jb-1)
-        slabOffset = (/ 0, 0, jb - 1 /)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes of this processor (offset b3-1)
+        slabOffset = (/ 0, 0, b3 - 1 /)
         call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
         ! Create memory dataspace with rank 3 and size slice_data_dim
         call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
@@ -502,7 +516,7 @@ contains
         ! Close FORTRAN interface
         CALL h5close_f(error)
 
-    end subroutine h5save_C3P
+    end subroutine h5save_C3Parallel_dim3
 
 
     ! subroutine h5save_C3Partial_Init( filename, varname, full_data_dim )
