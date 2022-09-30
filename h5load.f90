@@ -6,7 +6,7 @@ module h5load
     private
 #   include "parameters"
 
-    public :: h5load_R1, h5loadVelocities
+    public :: h5load_R1, h5load_C3, h5loadVelocities
 
 
 contains
@@ -60,6 +60,9 @@ contains
         ! Convert to cp and reshape matrix into a vector
         vector = reshape( real(matrix, cp), (/ dim1 /) )
 
+        ! Deallocate matrix
+        DEALLOCATE(matrix)
+
         ! close dataset
         CALL h5dclose_f(dset_id, error)
         ! close file
@@ -67,6 +70,109 @@ contains
         ! close h5 interface
         CALL h5close_f(error)
     end function h5load_R1
+
+
+    ! function ouput = h5load_C3( filename, varname )
+    ! Read complex rank 3 matrix from h5 file
+    ! Arguments:
+    !   filename: [string, Input]
+    !             h5 filename with path
+    !   varname : [string, Input]
+    !             variable name in h5 file, must be complex numerical rank 3 matrix
+    ! Output:
+    !   output:   [cp percision complex matrix]
+    function h5load_C3(filename, varname ) result(matrix)
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=cp), dimension(:,:,:), allocatable :: matrix
+        real(kind=cp), dimension(:,:,:), allocatable :: matrix_r, matrix_i
+
+        character(len=100) :: dset_name ! dataset name
+
+        INTEGER(HID_T) :: file_id        ! File identifier
+        INTEGER(HID_T) :: dset_id        ! Dataset identifier
+        INTEGER(HID_T) :: space_id       ! Dataspace identifier
+
+        INTEGER :: error ! Error flag
+        INTEGER :: dim1, dim2, dim3 ! matrix dimensions
+
+        INTEGER(HSIZE_T), DIMENSION(3) :: data_dims
+        INTEGER(HSIZE_T), DIMENSION(3) :: max_dims
+
+
+        ! Initialize FORTRAN interface.
+        CALL h5open_f(error)
+        ! Open an existing file with read only
+        CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
+
+        ! ----------------------- Get Matrix Dimensions -----------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        !Get dataspace ID
+        CALL h5dget_space_f(dset_id, space_id, error)
+        !Get dataspace dims
+        CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
+        dim1 = data_dims(1)
+        dim2 = data_dims(2)
+        dim3 = data_dims(3)
+        CALL h5sclose_f(space_id, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! -------------------------- Allocate Matrix --------------------------
+        ALLOCATE( matrix_r(dim1,dim2,dim3))
+        ALLOCATE( matrix_i(dim1,dim2,dim3))
+
+        ! ----------------------------- Real Part -----------------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of matrix
+        ! this will default to a double precision read, and later converted to cp
+        if ( cp .eq. dp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix_r, data_dims, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, matrix_r, data_dims, error)
+        endif
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! --------------------------- Imaginary Part ---------------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_IMAG"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of matrix
+        ! this will default to a double precision read, and later converted to cp
+        if ( cp .eq. dp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix_i, data_dims, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, matrix_i, data_dims, error)
+        endif
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! ------------------------ Build Complex Output ------------------------
+        matrix = CMPLX( matrix_r, matrix_i, cp)
+
+        ! ------------------------------ Clean Up ------------------------------
+        ! close file
+        CALL h5fclose_f(file_id, error)
+        ! close h5 interface
+        CALL h5close_f(error)
+        ! Deallocate
+        DEALLOCATE( matrix_r )
+        DEALLOCATE( matrix_i )
+
+    end function h5load_C3
+
+
 
     ! subroutine h5loadVelocities( filename, varname, Buffer )
     ! Arguments:
