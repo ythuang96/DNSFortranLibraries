@@ -4,7 +4,7 @@ module wallnormalgrid
     private
 #   include "parameters"
 
-    public :: prepare_grid, d_dy_complexvector
+    public :: prepare_grid, d_dy_realvector, d_dy_complexvector
 
     ! derivative matrices
     real(kind=cp) :: dt11(5,my),dt12(5,my)
@@ -58,6 +58,30 @@ contains
         enddo
         trp(my)= 0.5_cp*( y(my)-y(my-1) )
     end subroutine prepare_grid
+
+
+    ! function dudy = d_dy_realvector( u )
+    ! Computes the first y derivative for a real vector
+    !
+    ! Arguments:
+    !   u   : [real double/single, size my, Input]
+    !         Input vector
+    ! Output:
+    !   dudy: [real double/single, size my, Output]
+    !         first y derivative of input vector
+    function d_dy_realvector( u ) result( dudy )
+        real(kind=cp), dimension(my), intent(in) :: u
+        real(kind=cp), dimension(my) :: dudy
+
+        real(kind=cp) :: fmap, y, trp
+        common /ygrid/ y(my), fmap(my), trp(my)
+        save   /ygrid/
+
+
+        dudy = dt12_times_realvector( u )
+        call banbks5( dt11,my,dudy )
+        dudy = dudy * fmap
+    end function d_dy_realvector
 
 
     ! function dudy = d_dy_complexvector( u )
