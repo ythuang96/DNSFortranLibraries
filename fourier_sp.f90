@@ -6,9 +6,9 @@ module fourier_sp
 #   include "parameters"
     include 'fftw3.f03'
 
-    type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2
+    type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2, plan_fftt
 
-    public :: fft_plan, fft2, ifft2, ifftx, ifftz
+    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fftt
 
 
 contains
@@ -26,6 +26,7 @@ contains
         complex(C_FLOAT_COMPLEX), dimension(mgalz) :: vector_z
         complex(C_FLOAT_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
         real   (C_FLOAT        ), dimension(mgalx    ,mgalz) :: matrix_2d_real
+        complex(C_FLOAT_COMPLEX), dimension(nt) :: vector_t
 
 
         ! Generate plans for ifft in x and z seperately
@@ -43,6 +44,9 @@ contains
         ! https://www.fftw.org/fftw3_doc/Reversing-array-dimensions.html
         plan_fft2  = fftwf_plan_dft_r2c_2d(mgalz,mgalx, matrix_2d_real,matrix_2d_comp, FFTW_PATIENT )
         plan_ifft2 = fftwf_plan_dft_c2r_2d(mgalz,mgalx, matrix_2d_comp,matrix_2d_real, FFTW_PATIENT )
+
+        ! Generate plan for time FFT
+        plan_fftt = fftwf_plan_dft_1d(nt, vector_t,vector_t, FFTW_FORWARD, FFTW_PATIENT )
     end subroutine fft_plan
 
 
@@ -282,6 +286,37 @@ contains
             call fftwf_execute_dft(plan_ifftz, matrix_out(:,ii), matrix_out(:,ii) )
         ENDDO
     end subroutine ifftz
+
+
+    ! subroutine fftt( matrix )
+    ! Computes the fft in time for a 3d matrix
+    !
+    ! Arguments
+    !   matrix: [single complex, size (:,:,nt), Input/Output]
+    !           Time domain data as the input, and updated to become frequency domain data
+    !           The third dimension needs to be time, and updated to become frequency
+    subroutine fftt( matrix )
+        complex(kind=sp), intent(inout), dimension(:,:,:) :: matrix
+
+        integer :: ii, jj
+        integer :: size_matrix(3), size_dim1, size_dim2
+
+        ! get matrix dimensions
+        size_matrix = shape(matrix)
+        size_dim1   = size_matrix(1)
+        size_dim2   = size_matrix(2)
+
+        ! loop over dimension 1 and 2 and transform dimension 3 (which is time)
+        DO jj = 1, size_dim2
+            DO ii = 1, size_dim1
+                ! perform a inplace transform
+                call fftwf_execute_dft( plan_fftt, matrix(ii,jj,:), matrix(ii,jj,:) )
+            ENDDO
+        ENDDO
+
+        ! Normalization factor
+        matrix = matrix/real(nt,sp)
+    end subroutine fftt
 
 
 end module fourier_sp
