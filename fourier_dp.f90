@@ -298,7 +298,9 @@ contains
     subroutine fftt( matrix )
         complex(kind=dp), intent(inout), dimension(:,:,:) :: matrix
 
-        integer :: ii, jj
+        complex(kind=dp), dimension(nt) :: vec
+
+        integer :: ii, jj, kk
         integer :: size_matrix(3), size_dim1, size_dim2
 
         ! get matrix dimensions
@@ -309,13 +311,18 @@ contains
         ! loop over dimension 1 and 2 and transform dimension 3 (which is time)
         DO jj = 1, size_dim2
             DO ii = 1, size_dim1
+                DO kk = 1,nt
+                    vec(kk) = matrix(ii,jj,kk)
+                ENDDO
+
                 ! perform a inplace transform
-                call fftw_execute_dft( plan_fftt, matrix(ii,jj,:), matrix(ii,jj,:) )
+                call fftw_execute_dft( plan_fftt, vec, vec)
+
+                DO kk = 1,nt
+                    matrix(ii,jj,kk) = vec(kk)/real(nt,dp)
+                ENDDO
             ENDDO
         ENDDO
-
-        ! Normalization factor
-        matrix = matrix/real(nt,dp)
     end subroutine fftt
 
 
