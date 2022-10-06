@@ -325,4 +325,96 @@ contains
     end subroutine ifftz_fillnegkx
 
 
+    ! subroutine compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
+    ! This function computes the projection coefficient P_kx at a given yplane
+    !
+    ! Arguments:
+    !   uf,vf,wf:            [double/single complex, Size (mxf,mzf), Input]
+    !                        velocity fields at a single y plane
+    !   dudyf,dvdyf,dwdyf:   [double/single complex, Size (mxf,mzf), Input]
+    !                        y derivatives of velocity fields at a single y plane
+    !   fxf,fyf,fzf:         [double/single complex, Size (mxf,mzf), Input]
+    !                        mean subtracted non-linear forcing at a single y plane
+    !   Px_kx, Py_kx, Pz_kx: [double/single complex, Size (nkx_pos,nkx_full), Output]
+    !                        The computed projection coefficients
+    subroutine compute_Pom(u,v,w, ddx,ddy,ddz, f, P_om)
+        use FFT_PRECISION_CONTROL, only:
+        ! Input/Outputs
+        complex(kind=cp), intent( in), dimension(mgalx,mzf) :: u,v,w, ddx,ddy,ddz, f
+        complex(kind=cp), intent(inout), dimension(nom/2+1,nom) :: P_om
+
+        ! Results after ifft in z
+        ! Note that these all have a built in transpose that exchanges the
+        ! kx dimension with the z dimension for improved indexing effeciency
+        complex(kind=cp), dimension(mgalz,nkx_pos ) :: uf_t, vf_t, wf_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: fx_t, fy_t, fz_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: dudx_t, dvdx_t, dwdx_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: dudy_t, dvdy_t, dwdy_t
+        complex(kind=cp), dimension(mgalz,nkx_full) :: dudz_t, dvdz_t, dwdz_t
+        ! Temp variables for the loop
+        complex(kind=cp), dimension(mgalz) :: uf_temp, vf_temp, wf_temp
+        integer :: jj, kk
+
+
+        ! call timer_continue( timer_pkx1 )
+        ! ifft in z, only kx >= 0, size (mgalz, nkx_pos)
+        call ifftz( uf, uf_t )
+        call ifftz( vf, vf_t )
+        call ifftz( wf, wf_t )
+
+        ! ifft in z, and fill in kx < 0, size (mgalz, nkx_full,)
+        call ifftz_fillnegkx( fxf, fx_t )
+        call ifftz_fillnegkx( fyf, fy_t )
+        call ifftz_fillnegkx( fzf, fz_t )
+
+        call ifftz_fillnegkx( kx_derivative(uf), dudx_t )
+        call ifftz_fillnegkx( kx_derivative(vf), dvdx_t )
+        call ifftz_fillnegkx( kx_derivative(wf), dwdx_t )
+
+        call ifftz_fillnegkx( dudyf, dudy_t )
+        call ifftz_fillnegkx( dvdyf, dvdy_t )
+        call ifftz_fillnegkx( dwdyf, dwdy_t )
+
+        call ifftz_fillnegkx( kz_derivative(uf), dudz_t )
+        call ifftz_fillnegkx( kz_derivative(vf), dvdz_t )
+        call ifftz_fillnegkx( kz_derivative(wf), dwdz_t )
+
+        call timer_stop( timer_pkx1 )
+
+        call timer_continue( timer_pkx2 )
+        ! loop over nkx_pos
+        DO jj = 1, nkx_pos
+            ! kx1 is non-negative, with size nkx_pos
+            ! kx2 is the full range, with size nkx_full
+            !
+            ! The larger kx1 is, the smaller kx2 has to be to keep kx3 in range.
+            ! If kx1 = 0, then kx2, kx3 will both be the full range.
+            !
+            ! Therefore, we will remove (jj-1) points from the highest kx2,
+            ! and also remove (jj-1) points from the lowest kx3
+
+            ! u v w for the current kx1, size (mgalz)
+            uf_temp = uf_t(:,jj)
+            vf_temp = vf_t(:,jj)
+            wf_temp = wf_t(:,jj)
+
+
+            ! Loop over the active range of kx2, which has (jj-1) points from the highest kx2 removed
+            DO kk = 1, nkx_full-(jj-1)
+                P_om(jj,kk) = SUM( &
+                    ! compute f for the current kx1 + kx2
+                    (-uf_temp*dudx_t(:,kk) -vf_temp*dudy_t(:,kk) -wf_temp*dudz_t(:,kk)) &
+                    ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
+                    *CONJG(fx_t(:,kk+jj-1)) &
+                    ! average in z and time
+                    )/real(mgalz, cp)/real(nt,cp) &
+                    ! add to the cumulative time sum
+                    + P_om(jj,kk)
+            ENDDO
+
+        ENDDO
+        ! call timer_stop( timer_pkx2 )
+
+    end subroutine compute_Pom
+
 end module ComputeTriadicProjection

@@ -21,12 +21,14 @@ contains
     ! plan_ifftz: inverse fft for z         complex vector size mgalz -> complex vector size mgalz
     ! plan_fft2 : fft in both x z           real matrix size mgalx,mgalz -> complex matrix size mgalx/2+1,mgalz
     ! plan_ifft2: inverse fft in both x z   complex matrix size mgalx/2+1,mgalz -> real matrix size mgalx,mgalz
+    ! plan_fftt : fft in time               real vector size nt -> complex vector size nt/2+1 (nt = nom)
     subroutine fft_plan
         complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_x
         complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_z
         complex(C_DOUBLE_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
         real   (C_DOUBLE        ), dimension(mgalx    ,mgalz) :: matrix_2d_real
-        complex(C_DOUBLE_COMPLEX), dimension(nt) :: vector_t
+        real   (C_DOUBLE        ), dimension(nt    ) :: vector_t
+        complex(C_DOUBLE_COMPLEX), dimension(nt/2+1) :: vector_om
 
 
         ! Generate plans for ifft in x and z seperately
@@ -46,7 +48,7 @@ contains
         plan_ifft2 = fftw_plan_dft_c2r_2d(mgalz,mgalx, matrix_2d_comp,matrix_2d_real, FFTW_PATIENT )
 
         ! Generate plan for time FFT
-        plan_fftt = fftw_plan_dft_1d(nt, vector_t,vector_t, FFTW_FORWARD, FFTW_PATIENT )
+        plan_fftt = fftw_plan_dft_r2c_1d(nt, vector_t,vector_om, FFTW_PATIENT )
     end subroutine fft_plan
 
 
@@ -288,23 +290,28 @@ contains
     end subroutine ifftz
 
 
-    ! subroutine fftt( matrix )
+    ! subroutine fftt( matrix_in, matrix_out )
     ! Computes the fft in time for a 3d matrix
     !
     ! Arguments
-    !   matrix: [double complex, size (:,:,nt), Input/Output]
-    !           Time domain data as the input, and updated to become frequency domain data
-    !           The third dimension needs to be time, and updated to become frequency
-    subroutine fftt( matrix )
-        complex(kind=dp), intent(inout), dimension(:,:,:) :: matrix
+    !   matrix_in : [double real, size (:,:,nt), Input]
+    !               Time domain data as the input. The third dimension needs to be time
+    !   matrix_out: [double complex, size (:,:,nt/2+1), Output]
+    !               Frequency domain data. The third dimension is omega,
+    !               with the redundant (conjugate) data removed.
+    !               Note that omega is consistent with the resolvent definition with a negative sign
+    subroutine fftt( matrix_in, matrix_out )
+        real   (kind=dp), intent( in), dimension(:,:,:) :: matrix_in
+        complex(kind=dp), intent(out), dimension(:,:,:) :: matrix_out
 
-        complex(kind=dp), dimension(nt) :: vec
+        real   (kind=dp), dimension(nt    ) :: vec_in
+        complex(kind=dp), dimension(nt/2+1) :: vec_out
 
         integer :: ii, jj, kk
         integer :: size_matrix(3), size_dim1, size_dim2
 
         ! get matrix dimensions
-        size_matrix = shape(matrix)
+        size_matrix = shape(matrix_in)
         size_dim1   = size_matrix(1)
         size_dim2   = size_matrix(2)
 
@@ -312,14 +319,17 @@ contains
         DO jj = 1, size_dim2
             DO ii = 1, size_dim1
                 DO kk = 1,nt
-                    vec(kk) = matrix(ii,jj,kk)
+                    vec_in(kk) = matrix_in(ii,jj,kk)
                 ENDDO
 
-                ! perform a inplace transform
-                call fftw_execute_dft( plan_fftt, vec, vec)
+                ! perform transform
+                call fftw_execute_dft_r2c( plan_fftt, vec_in, vec_out)
 
-                DO kk = 1,nt
-                    matrix(ii,jj,kk) = vec(kk)/real(nt,dp)
+                DO kk = 1,nt/2+1
+                    matrix_out(ii,jj,kk) = conjg( vec_out(kk) )/real(nt,dp)
+                    ! conjg to conform to the resolvent standart with negative sign for omega
+                    ! kk = 1 and nt/2+1 correspond to the DC component and the nyquist frequency
+                    ! which are real only
                 ENDDO
             ENDDO
         ENDDO
