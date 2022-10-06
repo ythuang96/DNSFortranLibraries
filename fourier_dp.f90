@@ -8,6 +8,13 @@ module fourier_dp
 
     type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2, plan_fftt
 
+    complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_ifftx
+    complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_ifftz
+    complex(C_DOUBLE_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
+    real   (C_DOUBLE        ), dimension(mgalx    ,mgalz) :: matrix_2d_real
+    real   (C_DOUBLE        ), dimension(nt    ) :: vector_t
+    complex(C_DOUBLE_COMPLEX), dimension(nt/2+1) :: vector_om
+
     public :: fft_plan, fft2, ifft2, ifftx, ifftz, fftt
 
 
@@ -23,18 +30,10 @@ contains
     ! plan_ifft2: inverse fft in both x z   complex matrix size mgalx/2+1,mgalz -> real matrix size mgalx,mgalz
     ! plan_fftt : fft in time               real vector size nt -> complex vector size nt/2+1 (nt = nom)
     subroutine fft_plan
-        complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_x
-        complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_z
-        complex(C_DOUBLE_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
-        real   (C_DOUBLE        ), dimension(mgalx    ,mgalz) :: matrix_2d_real
-        real   (C_DOUBLE        ), dimension(nt    ) :: vector_t
-        complex(C_DOUBLE_COMPLEX), dimension(nt/2+1) :: vector_om
-
-
         ! Generate plans for ifft in x and z seperately
         ! These two are inplace transforms
-        plan_ifftx = fftw_plan_dft_1d(mgalx, vector_x,vector_x, FFTW_BACKWARD, FFTW_PATIENT )
-        plan_ifftz = fftw_plan_dft_1d(mgalz, vector_z,vector_z, FFTW_BACKWARD, FFTW_PATIENT )
+        plan_ifftx = fftw_plan_dft_1d(mgalx, vector_ifftx,vector_ifftx, FFTW_BACKWARD, FFTW_PATIENT )
+        plan_ifftz = fftw_plan_dft_1d(mgalz, vector_ifftz,vector_ifftz, FFTW_BACKWARD, FFTW_PATIENT )
 
         ! Note: the r2c and c2r versions of the transform uses the hermitian symmetry
         ! The symmetric part of the kx wavenumber is removed
@@ -206,12 +205,11 @@ contains
         complex(kind=dp), intent(out), dimension(mxf,mzf) :: matrix_out
 
         real   (kind=dp), dimension(mgalx,mgalz) :: temp1
-        complex(kind=dp), dimension(mgalx/2+1,mgalz) :: temp2
 
 
-        temp1 = matrix_in
-        call fftw_execute_dft_r2c(plan_fft2, temp1, temp2)
-        call removezeropad_2d( temp2, matrix_out )
+        matrix_2d_real = matrix_in
+        call fftw_execute_dft_r2c(plan_fft2, matrix_2d_real, matrix_2d_comp)
+        call removezeropad_2d( matrix_2d_comp, matrix_out )
         ! normalization factor
         matrix_out = matrix_out/real(mgalx,dp)/real(mgalz,dp)
     end subroutine fft2
@@ -233,7 +231,9 @@ contains
 
 
         call zeropad_2d( matrix_in, temp )
-        call fftw_execute_dft_c2r(plan_ifft2, temp, matrix_out)
+        matrix_2d_comp = temp
+        call fftw_execute_dft_c2r(plan_ifft2, matrix_2d_comp, matrix_2d_real)
+        matrix_out = matrix_2d_real
     end subroutine ifft2
 
 
@@ -257,7 +257,9 @@ contains
         call zeropad_x( matrix_in, matrix_out )
         ! for each kz, ifft in x
         DO ii = 1, nkz_pos
-            call fftw_execute_dft(plan_ifftx, matrix_out(:,ii), matrix_out(:,ii) )
+            vector_ifftx = matrix_out(:,ii)
+            call fftw_execute_dft(plan_ifftx, vector_ifftx, vector_ifftx )
+            matrix_out(:,ii) = vector_ifftx
         ENDDO
     end subroutine ifftx
 
@@ -285,7 +287,9 @@ contains
         call zeropad_z( matrix_in, matrix_out )
         ! for each kx, ifft in z
         DO ii = 1, nkx_pos
-            call fftw_execute_dft(plan_ifftz, matrix_out(:,ii), matrix_out(:,ii) )
+            vector_ifftz = matrix_out(:,ii)
+            call fftw_execute_dft(plan_ifftz, vector_ifftz, vector_ifftz )
+            matrix_out(:,ii) = vector_ifftz
         ENDDO
     end subroutine ifftz
 
@@ -304,9 +308,6 @@ contains
         real   (kind=dp), intent( in), dimension(:,:,:) :: matrix_in
         complex(kind=dp), intent(out), dimension(:,:,:) :: matrix_out
 
-        real   (kind=dp), dimension(nt    ) :: vec_in
-        complex(kind=dp), dimension(nt/2+1) :: vec_out
-
         integer :: ii, jj, kk
         integer :: size_matrix(3), size_dim1, size_dim2
 
@@ -319,14 +320,14 @@ contains
         DO jj = 1, size_dim2
             DO ii = 1, size_dim1
                 DO kk = 1,nt
-                    vec_in(kk) = matrix_in(ii,jj,kk)
+                    vector_t(kk) = matrix_in(ii,jj,kk)
                 ENDDO
 
                 ! perform transform
-                call fftw_execute_dft_r2c( plan_fftt, vec_in, vec_out)
+                call fftw_execute_dft_r2c( plan_fftt, vector_t, vector_om)
 
                 DO kk = 1,nt/2+1
-                    matrix_out(ii,jj,kk) = conjg( vec_out(kk) )/real(nt,dp)
+                    matrix_out(ii,jj,kk) = conjg( vector_om(kk) )/real(nt,dp)
                     ! conjg to conform to the resolvent standart with negative sign for omega
                     ! kk = 1 and nt/2+1 correspond to the DC component and the nyquist frequency
                     ! which are real only
