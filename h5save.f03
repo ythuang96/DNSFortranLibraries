@@ -215,6 +215,8 @@ contains
         character(len=*), intent(in) :: filename, varname
         complex(kind=cp), intent(in), dimension(:,:) :: matrix
 
+        real(kind=cp), dimension(:,:), allocatable :: temp
+
         character(len=100) :: dset_name ! dataset name
         integer(HSIZE_T), dimension(2) :: data_dim ! data dimensions
 
@@ -229,6 +231,8 @@ contains
 
         ! get matrix dimensions
         data_dim = shape(matrix)
+        ! Allocate temp buffer
+        ALLOCATE(temp(data_dim(1), data_dim(2)))
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -253,12 +257,13 @@ contains
         ! Create dataspace with rank 2 and size data_dim
         CALL h5screate_simple_f(2, data_dim, dspace_id, error)
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, cp)
         if ( cp .eq. dp ) then
             CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), data_dim, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, data_dim, error)
         else if ( cp .eq. sp ) then
             CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
-            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), data_dim, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, data_dim, error)
         endif
         ! Close dataset
         CALL h5dclose_f(dset_id, error)
@@ -270,12 +275,13 @@ contains
         ! Create dataspace with rank 2 and size data_dim
         CALL h5screate_simple_f(2, data_dim, dspace_id, error)
         ! Create double/single precision dataset with path '/var/var_IMAG' and write data
+        temp = aimag(matrix)
         if ( cp .eq. dp ) then
             CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), data_dim, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, data_dim, error)
         else if ( cp .eq. sp ) then
             CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
-            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), data_dim, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, data_dim, error)
         endif
         ! Close dataset
         CALL h5dclose_f(dset_id, error)
@@ -287,6 +293,8 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
     end subroutine h5save_C2
 
 
@@ -368,6 +376,8 @@ contains
         integer, intent(in) :: myid
         complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
 
+        real(kind=cp), dimension(:,:,:), allocatable :: temp
+
         character(len=100) :: dset_name ! dataset name
 
         ! data dimensions for full data and slice data
@@ -407,6 +417,8 @@ contains
         b3 = b3v(myid)
         e3 = e3v(myid)
 
+        ! Allocate temp buffer
+        allocate(temp( slice_data_dim(1), slice_data_dim(2), slice_data_dim(3)))
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -451,13 +463,14 @@ contains
         call h5pcreate_f(H5P_DATASET_XFER_F, PropertyList_id, error)
         call h5pset_dxpl_mpio_f(PropertyList_id, H5FD_MPIO_COLLECTIVE_F, error)
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, cp)
         if ( cp .eq. dp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         else if ( cp .eq. sp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         endif
         ! Close property list
@@ -490,13 +503,14 @@ contains
         call h5pcreate_f(H5P_DATASET_XFER_F, PropertyList_id, error)
         call h5pset_dxpl_mpio_f(PropertyList_id, H5FD_MPIO_COLLECTIVE_F, error)
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = aimag(matrix)
         if ( cp .eq. dp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         else if ( cp .eq. sp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         endif
         ! Close property list
@@ -516,7 +530,8 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
-
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
     end subroutine h5save_C3Parallel_dim3
 
 
@@ -538,6 +553,8 @@ contains
         character(len=*), intent(in) :: filename, varname
         integer, intent(in) :: myid
         complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
+
+        real(kind=cp), dimension(:,:,:), allocatable :: temp
 
         character(len=100) :: dset_name ! dataset name
 
@@ -578,6 +595,8 @@ contains
         b2 = b2v(myid)
         e2 = e2v(myid)
 
+        ! Allocate temp buffer
+        allocate(temp( slice_data_dim(1), slice_data_dim(2), slice_data_dim(3)))
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -622,13 +641,14 @@ contains
         call h5pcreate_f(H5P_DATASET_XFER_F, PropertyList_id, error)
         call h5pset_dxpl_mpio_f(PropertyList_id, H5FD_MPIO_COLLECTIVE_F, error)
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, cp)
         if ( cp .eq. dp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         else if ( cp .eq. sp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         endif
         ! Close property list
@@ -661,13 +681,14 @@ contains
         call h5pcreate_f(H5P_DATASET_XFER_F, PropertyList_id, error)
         call h5pset_dxpl_mpio_f(PropertyList_id, H5FD_MPIO_COLLECTIVE_F, error)
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = aimag(matrix)
         if ( cp .eq. dp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         else if ( cp .eq. sp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
-            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id, xfer_prp=PropertyList_id)
         endif
         ! Close property list
@@ -687,7 +708,8 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
-
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
     end subroutine h5save_C3Parallel_dim2
 
 
@@ -805,6 +827,8 @@ contains
         complex(kind=cp), intent(in), dimension(:,:) :: matrix
         integer, intent(in) :: dim3index
 
+        real(kind=cp), dimension(:,:), allocatable :: temp
+
         character(len=100) :: dset_name ! dataset name
 
         ! data dimensions for full data and slice data
@@ -824,6 +848,8 @@ contains
         slice_data_dim(1) = matrix_dim(1)
         slice_data_dim(2) = matrix_dim(2)
         slice_data_dim(3) = 1
+        ! Allocate temp buffer
+        allocate(temp( slice_data_dim(1), slice_data_dim(2)))
 
         ! ------------------------ Setup File and Group ------------------------
         ! Initialize hdf5 interface
@@ -850,11 +876,12 @@ contains
         call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
 
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, cp)
         if ( cp .eq. dp ) then
-            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, real(matrix, cp), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id)
         else if ( cp .eq. sp ) then
-            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, real(matrix, cp), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id)
         endif
         ! Close dataset
@@ -885,11 +912,12 @@ contains
         call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
 
         ! Create double/single precision dataset with path '/var/var_IMAG' and write data
+        temp = aimag(matrix)
         if ( cp .eq. dp ) then
-            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, aimag(matrix), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id)
         else if ( cp .eq. sp ) then
-            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, aimag(matrix), slice_data_dim, error, &
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
                     mem_space_id=mspace_id, file_space_id=dspace_id)
         endif
         ! Close dataset
@@ -907,7 +935,8 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
-
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
     end subroutine h5save_C3Partial_SingleDim3
 
 end module h5save
