@@ -1,19 +1,9 @@
 module ComputeTriadicProjection
     use types, only: sp, dp
-    use time, only: timer_continue, timer_stop
 
     implicit none
     private
 #   include "parameters"
-
-    ! Global Timer Variables
-    real(kind=dp) :: timer_total, timer_loop, timer_read, timer_distribute, timer_dy, &
-                     timer_change, timer_f, timer_pkx, timer_pkz, &
-                     timer_pkx1, timer_pkx2, timer_pkz1, timer_pkz2
-    common/timers/   timer_total, timer_loop, timer_read, timer_distribute, timer_dy, &
-                     timer_change, timer_f, timer_pkx, timer_pkz, &
-                     timer_pkx1, timer_pkx2, timer_pkz1, timer_pkz2
-    save  /timers/
 
     public :: compute_Pkx_Pkz
 
@@ -30,19 +20,13 @@ contains
 
 
         ! Compute forcing
-        call timer_continue( timer_f )
         call compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
-        call timer_stop( timer_f )
 
         ! Compute P_kx
-        call timer_continue( timer_pkx )
         call compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
-        call timer_stop( timer_pkx )
 
         ! Compute P_kz
-        call timer_continue( timer_pkz )
         call compute_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kz, Py_kz, Pz_kz)
-        call timer_stop( timer_pkz )
 
     end subroutine compute_Pkx_Pkz
 
@@ -79,7 +63,6 @@ contains
         integer :: jj, kk
 
 
-        call timer_continue( timer_pkx1 )
         ! ifft in z, only kx >= 0, size (mgalz, nkx_pos)
         call ifftz( uf, uf_t )
         call ifftz( vf, vf_t )
@@ -102,9 +85,6 @@ contains
         call ifftz_fillnegkx( kz_derivative(vf), dvdz_t )
         call ifftz_fillnegkx( kz_derivative(wf), dwdz_t )
 
-        call timer_stop( timer_pkx1 )
-
-        call timer_continue( timer_pkx2 )
         ! loop over nkx_pos
         DO jj = 1, nkx_pos, DS_kx
             ! kx1 is non-negative, with size nkx_pos
@@ -159,7 +139,6 @@ contains
             ENDDO
 
         ENDDO
-        call timer_stop( timer_pkx2 )
 
     end subroutine compute_Pkx
 
@@ -194,7 +173,6 @@ contains
         integer :: jj, kk
 
 
-        call timer_continue( timer_pkz1 )
         ! ifft in x, only kz >= 0, size (mgalx, nkz_pos )
         call ifftx( uf, uf_t )
         call ifftx( vf, vf_t )
@@ -217,9 +195,6 @@ contains
         call ifftx_fillnegkz( kz_derivative(vf), dvdz_t )
         call ifftx_fillnegkz( kz_derivative(wf), dwdz_t )
 
-        call timer_stop( timer_pkz1 )
-
-        call timer_continue( timer_pkz2 )
         ! loop over nkz_pos
         DO jj = 1, nkz_pos, DS_kz
             ! kz1 is non-negative, with size nkz_pos
@@ -274,7 +249,6 @@ contains
             ENDDO
 
         ENDDO
-        call timer_stop( timer_pkz2 )
 
     end subroutine compute_Pkz
 
