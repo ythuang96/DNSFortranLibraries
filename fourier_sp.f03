@@ -204,9 +204,6 @@ contains
         real   (kind=sp), intent( in), dimension(mgalx,mgalz) :: matrix_in
         complex(kind=sp), intent(out), dimension(mxf,mzf) :: matrix_out
 
-        real   (kind=sp), dimension(mgalx,mgalz) :: temp1
-
-
         matrix_2d_real = matrix_in
         call fftwf_execute_dft_r2c(plan_fft2, matrix_2d_real, matrix_2d_comp)
         call removezeropad_2d( matrix_2d_comp, matrix_out )
@@ -227,11 +224,7 @@ contains
         complex(kind=sp), intent( in), dimension(mxf,mzf) :: matrix_in
         real   (kind=sp), intent(out), dimension(mgalx,mgalz) :: matrix_out
 
-        complex(kind=sp), dimension(mgalx/2+1,mgalz) :: temp
-
-
-        call zeropad_2d( matrix_in, temp )
-        matrix_2d_comp = temp
+        call zeropad_2d( matrix_in, matrix_2d_comp )
         call fftwf_execute_dft_c2r(plan_ifft2, matrix_2d_comp, matrix_2d_real)
         matrix_out = matrix_2d_real
     end subroutine ifft2
