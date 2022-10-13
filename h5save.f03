@@ -9,6 +9,7 @@ module h5save
     public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2
     public :: h5save_C3Parallel_dim3, h5save_C3Parallel_dim2
     public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3
+    public :: h5save_C3Serial_dim3
 
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
@@ -938,6 +939,74 @@ contains
         ! Deallocate temp buffer
         DEALLOCATE(temp)
     end subroutine h5save_C3Partial_SingleDim3
+
+
+    ! subroutine h5save_C3Serial_dim3( filename, varname, myid, matrix )
+    ! save a complex rank 3 matrix to h5 file in serial.
+    ! with parallization in dimension 3 (Each processor has data for a few
+    ! dimension 3 grid points, while having all data for dimension 1 and 2.)
+    ! Data will be saved on dim 3 grid point at a time.
+    !
+    ! Funciton wise is the same as h5save_C3Parallel_dim3
+    !
+    ! All processors should call this function.
+    !
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name
+    !   myid    : [integer, Input] processor ID
+    !   matrix  : [double/single complex 3d matrix, Input] data to be saved
+    subroutine h5save_C3Serial_dim3( filename, varname, myid, matrix)
+        use parallelization, only: pointers
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        integer, intent(in) :: myid
+        complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
+
+        ! data dimensions for full data and slice data
+        integer, dimension(3) :: full_data_dim, slice_data_dim
+        integer :: dim3slice, dim3full
+
+        ! work assignment pointers for dimension 3
+        integer :: b3v(0:numerop-1), e3v(0:numerop-1)
+        integer :: b3, e3
+
+        ! MPI variables
+        integer :: ierr
+
+        integer :: ii
+
+
+        ! --------------------- Get Full Matrix Dimensions ---------------------
+        ! get matrix dimension for the slices that this current processor has
+        slice_data_dim = shape(matrix)
+        dim3slice = slice_data_dim(3)
+        ! compute the full dimension 3 size by adding all the dimension 3 slice sizes
+        call MPI_ALLREDUCE(dim3slice, dim3full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
+        full_data_dim(1) = slice_data_dim(1)
+        full_data_dim(2) = slice_data_dim(2)
+        full_data_dim(3) = dim3full
+
+        ! -------------- Compute the distribution in dimension 3 --------------
+        call pointers( b3v, e3v, dim3full)
+        b3 = b3v(myid)
+        e3 = e3v(myid)
+
+        ! --------------- Initialize variable for partial saving ---------------
+        if (myid .eq. 0) then
+            call h5save_C3Partial_Init( filename, varname, full_data_dim)
+        endif
+
+        ! ----------------- Loop over dim3 and save each dim 3 -----------------
+        DO ii = 1, dim3full
+            call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+            if ( (ii .ge. b3) .and. (ii .le. e3) ) then
+                ! if this plane is part of the data
+                call h5save_C3Partial_SingleDim3( filename, varname, matrix(:,:,ii-b3+1), ii )
+            endif
+            call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+        ENDDO
+    end subroutine h5save_C3Serial_dim3
 
 end module h5save
 
