@@ -616,8 +616,10 @@ contains
 
         ! MPI variables
         integer :: ierr
-
+        ! Loop index
         integer :: ii
+        ! Data consistency check
+        logical :: dataagree
 
 
         ! --------------------- Get Full Matrix Dimensions ---------------------
@@ -640,16 +642,99 @@ contains
             call h5save_C3Partial_Init( filename, varname, full_data_dim)
         endif
 
-        ! ----------------- Loop over dim3 and save each dim 3 -----------------
-        DO ii = 1, dim3full
-            call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-            if ( (ii .ge. b3) .and. (ii .le. e3) ) then
-                ! if this plane is part of the data
-                call h5save_C3Partial_SingleDim3( filename, varname, matrix(:,:,ii-b3+1), ii )
+        ! ------------- Save data to h5 and check data consistency -------------
+        ! This ensures the data saving is executed at least once
+        dataagree = .false.
+
+        ! Loop until h5 file passes data consistency check
+        DO WHILE ( dataagree .eqv. .false. )
+
+            ! Loop over dim3 and save each dim 3
+            DO ii = 1, dim3full
+                call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+                if ( (ii .ge. b3) .and. (ii .le. e3) ) then
+                    ! if this plane is part of the data
+                    call h5save_C3Partial_SingleDim3( filename, varname, matrix(:,:,ii-b3+1), ii )
+                endif
+                call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+            ENDDO
+
+            ! verify data consistency
+            dataagree = verifysave_C3_dim3(filename, varname, myid, matrix, full_data_dim)
+            if ( myid .eq. 0 ) then
+                if ( dataagree ) then
+                    write(*,*) "   Data consistency check passed."
+                else
+                    write(*,*) "   Data consistency check failed, re-saving data."
+                endif
             endif
-            call MPI_BARRIER(MPI_COMM_WORLD, ierr)
         ENDDO
     end subroutine h5save_C3Serial_dim3
+
+
+    ! function verifysave_C3_dim3(filename, varname, myid, matrix, full_data_dim) result( dataagree_all )
+    ! Read data from the h5 file and compare to the data in memory to ensure
+    ! no data corruption in the saving process
+    !
+    ! Arguments:
+    !   filename     : [string, Input] h5 filename with path
+    !   varname      : [string, Input] variable name
+    !   myid         : [integer, Input] processor ID
+    !   matrix       : [double/single complex 3d matrix, Input] data saved
+    !   full_data_dim: [integer, size (3)] size of the full rank 3 matrix
+    ! Return:
+    !   dataagree_all: [logical] true if the data in the h5 file matches with what was saved
+    !                            false if data corruption occured
+    function verifysave_C3_dim3(filename, varname, myid, matrix, full_data_dim) result( dataagree_all )
+        use parallelization, only: pointers, distribute_C3_slicedim3
+        use h5load, only: h5load_C3
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        integer, intent(in) :: myid
+        complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
+        integer, intent(in), dimension(3) :: full_data_dim
+        ! Output
+        logical :: dataagree_local, dataagree_all
+
+        ! work assignment pointers for dimension 3
+        integer :: b3v(0:numerop-1), e3v(0:numerop-1)
+        integer :: b3, e3
+        ! full data read from the file
+        complex(kind=cp), dimension(:,:,:), allocatable :: full_data, slice_data
+        ! MPI variables
+        integer :: ierr
+
+
+        ! -------------- Compute the distribution in dimension 3 --------------
+        call pointers( b3v, e3v, full_data_dim(3))
+        b3 = b3v(myid)
+        e3 = e3v(myid)
+
+        ! ---------------- Read from h5 and distribute in dim 3 ----------------
+        allocate(  full_data( full_data_dim(1),full_data_dim(2),full_data_dim(3) ) )
+        allocate( slice_data( full_data_dim(1),full_data_dim(2),b3:e3            ) )
+        ! Master reads data from the h5 file
+        if (myid .eq. 0) then
+            full_data = h5load_C3(filename, varname )
+        endif
+        ! distribute data in dimension 3
+        call distribute_C3_slicedim3( myid, 0, full_data, slice_data )
+        deallocate( full_data )
+
+        ! ---------------------------- Compare data ----------------------------
+        if ( all(slice_data .eq. matrix) ) then
+            dataagree_local = .true.
+        else
+            write(*,"(A,I2.2)") "   Data corruption at processor: ", myid
+            dataagree_local = .false.
+        endif
+        deallocate( slice_data )
+
+        ! ------------------ Collect data from all processors ------------------
+        call MPI_ALLREDUCE(dataagree_local, dataagree_all, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierr)
+
+    end function verifysave_C3_dim3
+
 
 end module h5save
 
