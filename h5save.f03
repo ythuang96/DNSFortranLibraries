@@ -7,8 +7,8 @@ module h5save
 #   include "parameters"
 
     public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2
-    public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3
-    public :: h5save_C3Serial_dim3
+    public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3, h5save_C3Partial_SingleDim2
+    public :: h5save_C3Serial_dim3, h5save_C3Serial_dim2
 
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
@@ -734,6 +734,289 @@ contains
         call MPI_ALLREDUCE(dataagree_local, dataagree_all, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierr)
 
     end function verifysave_C3_dim3
+
+
+    ! subroutine h5save_C3Partial_SingleDim2( filename, varname, matrix, dim2index )
+    ! save a complex rank 2 matrix to h5 file as a single plane of dimension 2
+    ! of the full complex rank 3 matrix
+    !
+    ! Arguments:
+    !   filename : [string, Input] h5 filename with path
+    !   varname  : [string, Input] variable name
+    !   matrix   : [double/single complex 3d matrix, size (dim1size, dim3size) Input] data to be saved
+    !   dim2index: [integer, Input] the index for the second dimension
+    !
+    ! Note:
+    !   The variable in this h5 file must already be initilaized using the function h5save_C3Partial_Init
+    subroutine h5save_C3Partial_SingleDim2( filename, varname, matrix, dim2index)
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=cp), intent(in), dimension(:,:) :: matrix
+        integer, intent(in) :: dim2index
+
+        real(kind=cp), dimension(:,:,:), allocatable :: temp
+
+        character(len=100) :: dset_name ! dataset name
+
+        ! data dimensions for full data and slice data
+        integer(HSIZE_T), dimension(2) :: matrix_dim
+        integer(HSIZE_T), dimension(3) :: slice_data_dim
+        integer(HSIZE_T), dimension(3) :: slabOffset ! hyperslab offset
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id   ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: mspace_id ! memeory space id
+        INTEGER(HID_T) :: dset_id   ! dataset id
+
+
+        ! get matrix dimension
+        matrix_dim = shape(matrix)
+        slice_data_dim(1) = matrix_dim(1)
+        slice_data_dim(2) = 1
+        slice_data_dim(3) = matrix_dim(2)
+        ! Allocate temp buffer
+        allocate(temp( slice_data_dim(1), slice_data_dim(2), slice_data_dim(3)))
+
+        ! ------------------------ Setup File and Group ------------------------
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Open file with read and write access
+        call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        ! Group is already created by h5save_C3Partial_Init
+
+        ! ----------------------------- Real part -----------------------------
+        dset_name = varname // "/" // varname // "_REAL"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim2index (offset dim2index-1)
+        slabOffset = (/ 0, dim2index - 1, 0 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 3 and size slice_data_dim
+        call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp(:,1,:) = real(matrix, cp)
+        if ( cp .eq. dp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        else if ( cp .eq. sp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        endif
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! --------------------------- Imaginary part ---------------------------
+        dset_name = varname // "/" // varname // "_IMAG"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim2index (offset dim2index-1)
+        slabOffset = (/ 0, dim2index - 1, 0 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 3 and size slice_data_dim
+        call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create double/single precision dataset with path '/var/var_IMAG' and write data
+        temp(:,1,:) = aimag(matrix)
+        if ( cp .eq. dp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        else if ( cp .eq. sp ) then
+            call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
+                    mem_space_id=mspace_id, file_space_id=dspace_id)
+        endif
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! ------------------------------ Clean up ------------------------------
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
+    end subroutine h5save_C3Partial_SingleDim2
+
+
+    ! subroutine h5save_C3Serial_dim2( filename, varname, myid, matrix )
+    ! save a complex rank 3 matrix to h5 file in serial.
+    ! with parallization in dimension 2 (Each processor has data for a few
+    ! dimension 2 grid points, while having all data for dimension 1 and 3.)
+    ! Data will be saved one dim 2 grid point at a time.
+    !
+    ! Function wise is the same as h5save_C3Parallel_dim2
+    !
+    ! All processors should call this function.
+    !
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name
+    !   myid    : [integer, Input] processor ID
+    !   matrix  : [double/single complex 3d matrix, Input] data to be saved
+    subroutine h5save_C3Serial_dim2( filename, varname, myid, matrix)
+        use parallelization, only: pointers
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        integer, intent(in) :: myid
+        complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
+
+        ! data dimensions for full data and slice data
+        integer, dimension(3) :: full_data_dim, slice_data_dim
+        integer :: dim2slice, dim2full
+
+        ! work assignment pointers for dimension 2
+        integer :: b2v(0:numerop-1), e2v(0:numerop-1)
+        integer :: b2, e2
+
+        ! MPI variables
+        integer :: ierr
+        ! Loop index
+        integer :: ii
+        ! Data consistency check
+        logical :: dataagree
+
+
+        ! --------------------- Get Full Matrix Dimensions ---------------------
+        ! get matrix dimension for the slices that this current processor has
+        slice_data_dim = shape(matrix)
+        dim2slice = slice_data_dim(2)
+        ! compute the full dimension 2 size by adding all the dimension 2 slice sizes
+        call MPI_ALLREDUCE(dim2slice, dim2full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
+        full_data_dim(1) = slice_data_dim(1)
+        full_data_dim(2) = dim2full
+        full_data_dim(3) = slice_data_dim(3)
+
+        ! -------------- Compute the distribution in dimension 2 --------------
+        call pointers( b2v, e2v, dim2full)
+        b2 = b2v(myid)
+        e2 = e2v(myid)
+
+        ! --------------- Initialize variable for partial saving ---------------
+        if (myid .eq. 0) then
+            call h5save_C3Partial_Init( filename, varname, full_data_dim)
+        endif
+
+        ! ------------- Save data to h5 and check data consistency -------------
+        ! This ensures the data saving is executed at least once
+        dataagree = .false.
+
+        ! Loop until h5 file passes data consistency check
+        DO WHILE ( dataagree .eqv. .false. )
+
+            ! Loop over dim3 and save each dim 3
+            DO ii = 1, dim2full
+                call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+                if ( (ii .ge. b2) .and. (ii .le. e2) ) then
+                    ! if this plane is part of the data the current processor has
+                    call h5save_C3Partial_SingleDim2( filename, varname, matrix(:,ii-b2+1,:), ii )
+                endif
+                call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+            ENDDO
+
+            ! verify data consistency
+            dataagree = verifysave_C3_dim2(filename, varname, myid, matrix, full_data_dim)
+            if ( myid .eq. 0 ) then
+                if ( dataagree ) then
+                    write(*,*) "   Data consistency check passed."
+                else
+                    write(*,*) "   Data consistency check failed, re-saving data."
+                endif
+            endif
+        ENDDO
+    end subroutine h5save_C3Serial_dim2
+
+
+    ! function verifysave_C3_dim2(filename, varname, myid, matrix, full_data_dim) result( dataagree_all )
+    ! Read data from the h5 file and compare to the data in memory to ensure
+    ! no data corruption in the saving process
+    !
+    ! Arguments:
+    !   filename     : [string, Input] h5 filename with path
+    !   varname      : [string, Input] variable name
+    !   myid         : [integer, Input] processor ID
+    !   matrix       : [double/single complex 3d matrix, Input] data saved
+    !   full_data_dim: [integer, size (3)] size of the full rank 3 matrix
+    ! Return:
+    !   dataagree_all: [logical] true if the data in the h5 file matches with what was saved
+    !                            false if data corruption occured
+    function verifysave_C3_dim2(filename, varname, myid, matrix, full_data_dim) result( dataagree_all )
+        use parallelization, only: pointers, distribute_C3_slicedim2
+        use h5load, only: h5load_C3
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        integer, intent(in) :: myid
+        complex(kind=cp), intent(in), dimension(:,:,:) :: matrix
+        integer, intent(in), dimension(3) :: full_data_dim
+        ! Output
+        logical :: dataagree_local, dataagree_all
+
+        ! work assignment pointers for dimension 3
+        integer :: b2v(0:numerop-1), e2v(0:numerop-1)
+        integer :: b2, e2
+        ! full data read from the file
+        complex(kind=cp), dimension(:,:,:), allocatable :: full_data, slice_data
+        ! MPI variables
+        integer :: ierr
+
+
+        ! -------------- Compute the distribution in dimension 2 --------------
+        call pointers( b2v, e2v, full_data_dim(2))
+        b2 = b2v(myid)
+        e2 = e2v(myid)
+
+        ! ---------------- Read from h5 and distribute in dim 2 ----------------
+        allocate(  full_data( full_data_dim(1),full_data_dim(2),full_data_dim(3) ) )
+        allocate( slice_data( full_data_dim(1),b2:e2           ,full_data_dim(3) ) )
+        ! Master reads data from the h5 file
+        if (myid .eq. 0) then
+            full_data = h5load_C3(filename, varname )
+        endif
+        ! distribute data in dimension 2
+        call distribute_C3_slicedim2( myid, 0, full_data, slice_data )
+        deallocate( full_data )
+
+        ! ---------------------------- Compare data ----------------------------
+        if ( all(slice_data .eq. matrix) ) then
+            dataagree_local = .true.
+        else
+            write(*,"(A,I2.2)") "   Data corruption at processor: ", myid
+            dataagree_local = .false.
+        endif
+        deallocate( slice_data )
+
+        ! ------------------ Collect data from all processors ------------------
+        call MPI_ALLREDUCE(dataagree_local, dataagree_all, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierr)
+
+    end function verifysave_C3_dim2
 
 
 end module h5save
