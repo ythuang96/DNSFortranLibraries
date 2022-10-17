@@ -146,14 +146,14 @@ contains
     ! If kx_max_truncate < max(kx_pos) then this function does nothing
     !
     ! Arguments:
-    !   matrix : [double/single complex, size (mxf,mzf,myf), Input/Output]
+    !   matrix : [double/single complex, size (mxf,mzf,:), Input/Output]
     !            Any Forier domain data at a all y planes
     !   onoff  : [logical]
     !            turn on or turn off truncation
     !            if set to false, no truncation is performed regardless of the parameter kx_max_truncate
     !            if set to true , truncation is performed if kx_max_truncate < kx_max
     subroutine truncate_kx_3D( matrix , onoff)
-        complex(kind=cp), intent(inout), dimension(mxf, mzf, myf) :: matrix
+        complex(kind=cp), intent(inout), dimension(:, :, :) :: matrix
         logical, intent(in) :: onoff
 
         real(kind=cp) :: kx_max
