@@ -5,7 +5,7 @@ module ComputeTriadicProjection
     private
 #   include "parameters"
 
-    public :: compute_Pkx_Pkz
+    public :: compute_Pkx_Pkz, compute_Pom
 
 contains
     subroutine compute_Pkx_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, Px_kx, Py_kx, Pz_kx, Px_kz, Py_kz, Pz_kz)
@@ -298,5 +298,166 @@ contains
         matrix_out(:,1:nkx_pos-1) =  CONJG( matrix_out(:,nkx_full:nkx_pos+1:-1) )
     end subroutine ifftz_fillnegkx
 
+
+    ! subroutine compute_Pom(u_xom,v_xom,w_xom, ddx_xom,ddy_xom,ddz_xom, f_xom, P_om)
+    ! This function computes the projection coefficient P_om at a given yplane
+    !
+    ! Arguments:
+    !   u_xom, v_xom, w_xom      : [double/single complex, Size (mgalx, b_z:e_z, nom/2+1), Input]
+    !                              velocity fields at a single y plane, in physical x, z space and Fourier omega space, distributed in z
+    !   ddx_xom, ddy_xom, ddz_xom: [double/single complex, Size (mgalx, b_z:e_z, nom/2+1), Input]
+    !                              x, y, z derivatives
+    !   f_xom                    : [double/single complex, Size (mgalx, b_z:e_z, nom/2+1), Input]
+    !                              non-linear forcing
+    !   P_om                     : [double/single complex, Size (nkx_pos,nkx_full), Output]
+    !                              The computed projection coefficients
+    !
+    ! Note:
+    !   To compute Px, input the u derivatives dudx, dudy, dudz, and fx
+    !   Similarly, to compute Py, input the v derivatives and fy
+    !   to compute Pz, input the w derivatives and fz
+    !
+    !   All input data are in physical x, z space and Fourier omega space, distributed in z
+    !   And with all necessary mean subtraction
+    subroutine compute_Pom(u_xom,v_xom,w_xom, ddx_xom,ddy_xom,ddz_xom, f_xom, P_om)
+        use mpi
+        ! Input/Outputs
+        complex(kind=cp), intent( in), dimension(:,:,:) :: u_xom,v_xom,w_xom, ddx_xom,ddy_xom,ddz_xom, f_xom
+        complex(kind=cp), intent(out), dimension(nom/2+1,nom) :: P_om
+
+        ! P_om for the current processor
+        complex(kind=cp), dimension(nom/2+1,nom) :: P_local
+        ! Variables with full omega range
+        complex(kind=cp), dimension(:,:,:), allocatable :: ddx_fullom, ddy_fullom, ddz_fullom, f_fullom
+
+        ! Matrix dimensions
+        integer, dimension(3) :: data_dim
+        ! Temp variables for the loop
+        complex(kind=cp), dimension(:,:), allocatable :: u_temp, v_temp, w_temp
+        integer :: jj, kk
+
+        ! Variables for MPI
+        real   (kind=cp), dimension(nom/2+1,nom,2) :: send_buffer, recv_buffer ! send and recieve buffers
+        integer :: count ! allreduce data count
+        integer :: ierr ! MPI error
+
+        ! ------------------------- Allocate Vaiables -------------------------
+        ! Input matrix dimensions
+        data_dim = shape(u_xom)
+        ! Allocate temp variables with full omega range
+        allocate( ddx_fullom(data_dim(1), data_dim(2), nom) )
+        allocate( ddy_fullom(data_dim(1), data_dim(2), nom) )
+        allocate( ddz_fullom(data_dim(1), data_dim(2), nom) )
+        allocate(   f_fullom(data_dim(1), data_dim(2), nom) )
+        ! Allocate temp variables for u, v, w at a single omega for the loop
+        allocate( u_temp(data_dim(1), data_dim(2)) )
+        allocate( v_temp(data_dim(1), data_dim(2)) )
+        allocate( w_temp(data_dim(1), data_dim(2)) )
+
+        ! Zero results
+        P_local = (0.0_cp, 0.0_cp)
+
+        ! ----------------------- Fillin negative omega -----------------------
+        ! Fill the other half of omega using hermitian symmetry
+        call fillnegomega( ddx_xom, ddx_fullom )
+        call fillnegomega( ddy_xom, ddy_fullom )
+        call fillnegomega( ddz_xom, ddz_fullom )
+        call fillnegomega(   f_xom,   f_fullom )
+
+        ! ------------------------- Loop over omega_1 -------------------------
+        DO jj = 1, nom/2+1
+            ! om1 is non-negative omega, with size nom/2+1
+            ! om2 is the full range omega, with size nom
+            !
+            ! The larger om1 is, the smaller om2 has to be to keep om3 in range.
+            ! If om1 = 0, then om2, om3 will both be the full range.
+            !
+            ! Therefore, we will remove (jj-1) points from the highest om2,
+            ! and also remove (jj-1) points from the lowest om3
+
+            ! u v w for the current om1, size (mgalx, b_z:e_z)
+            u_temp = u_xom(:,:,jj)
+            v_temp = v_xom(:,:,jj)
+            w_temp = w_xom(:,:,jj)
+
+            ! Loop over the active range of om2, which has (jj-1) points from the highest kx2 removed
+            DO kk = 1, nom-(jj-1)
+                P_local(jj,kk) = SUM( &
+                    ! compute f for the current om1 + om2
+                    (-u_temp*ddx_fullom(:,:,kk) -v_temp*ddy_fullom(:,:,kk) -w_temp*ddz_fullom(:,:,kk)) &
+                    ! project onto this om3, which is shifted by (jj-1) points compared to om2
+                    *CONJG(f_fullom(:,:,kk+jj-1)) &
+                    ! average in x and z
+                    )/real(mgalx, cp)/real(mgalz,cp)
+            ENDDO
+        ENDDO
+
+        ! ------------------- Sum result over all processors -------------------
+        ! Each processor has a small amount of z grid points
+        ! Package real and imaginary parts
+        send_buffer(:,:,1) =  real( P_local(:,:), cp)
+        send_buffer(:,:,2) = aimag( P_local(:,:) )
+        ! Data count (times 2 for real and imaginary parts)
+        count = (nom/2+1) * nom * 2
+        ! Sum data over all processors
+        ! (note that all data are already divided by mgalz, this sum is therefore the average in z)
+        if      ( cp .eq. dp ) then
+            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+        else if ( cp .eq. sp ) then
+            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_REAL            , MPI_SUM, MPI_COMM_WORLD, ierr)
+        endif
+        ! Build final result from real and imaginary parts
+        P_om = CMPLX( recv_buffer(:,:,1), recv_buffer(:,:,2), cp)
+
+        ! ------------------------------ Clean Up ------------------------------
+        deallocate( ddx_fullom )
+        deallocate( ddy_fullom )
+        deallocate( ddz_fullom )
+        deallocate(   f_fullom )
+        deallocate(   u_temp   )
+        deallocate(   v_temp   )
+        deallocate(   w_temp   )
+
+    end subroutine compute_Pom
+
+
+    ! subroutine fillnegomega(matrix_in, matrix_out)
+    ! This subroutine fills the negative omega parts for a matrix
+    !
+    ! Arguements
+    !   matrix_in : [complex matrix size (:,:,nom/2+1), Input ]
+    !               matrix with omega as dimension 3, only the non-negative omegas
+    !   matrix_out: [complex matrix size (:,:,nom    ), Output]
+    !               matrix with both postivie and negative omega
+    !               dimension 3 corresponds to omegas that are montonically increasing
+    !
+    ! Data Arrangement
+    !   dimension 3 of input:
+    !     matrix index         1      2    ...       nom/2         nom/2+1
+    !     corresponding om:  0(DC)   dom   ...   (nom/2-1)*dom  omega_nyquist
+    !   dimension 3 of output:
+    !     matrix index              1         ...   nom/2-1  nom/2   nom/2+1   ...       nom-1          nom
+    !     corresponding om:  -(nom/2-1)*dom   ...    -dom    0(DC)     dom     ...   (nom/2-1)*dom  omega_nyquist
+    subroutine fillnegomega(matrix_in, matrix_out)
+        ! Input/Outputs
+        complex(kind=cp), intent( in), dimension(:,:,:) :: matrix_in
+        complex(kind=cp), intent(out), dimension(:,:,:) :: matrix_out
+
+        ! Loop index
+        integer :: kk
+
+        ! negative omega range, take the conjugate
+        DO kk = 1, nt/2-1
+            matrix_out(:,:,kk) = conjg( matrix_in(:,:,nt/2+1-kk))
+        ENDDO
+        ! omega = 0 component (this is real data)
+        matrix_out(:,:,nt/2) = matrix_in(:,:,1)
+        ! positive omega range
+        DO kk = nt/2+1, nt-1
+            matrix_out(:,:,kk) = matrix_in(:,:,kk-nt/2+1)
+        ENDDO
+        ! max omega (this component is real)
+        matrix_out(:,:,nt) = matrix_in(:,:,nt/2+1)
+    end subroutine fillnegomega
 
 end module ComputeTriadicProjection
