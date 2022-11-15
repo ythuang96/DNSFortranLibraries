@@ -6,7 +6,7 @@ module fourier_dp
 #   include "parameters"
     include 'fftw3.f03'
 
-    type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2, plan_fftt
+    type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2, plan_fftt, plan_fftt_c2c
 
     complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_ifftx
     complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_ifftz
@@ -15,7 +15,9 @@ module fourier_dp
     real   (C_DOUBLE        ), dimension(nt    ) :: vector_t
     complex(C_DOUBLE_COMPLEX), dimension(nt/2+1) :: vector_om
 
-    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fftt
+    complex(C_DOUBLE_COMPLEX), dimension(nt) :: vector_tom_c2c
+
+    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fftt, fftt_c2c
 
 
 contains
@@ -47,7 +49,14 @@ contains
         plan_ifft2 = fftw_plan_dft_c2r_2d(mgalz,mgalx, matrix_2d_comp,matrix_2d_real, FFTW_PATIENT )
 
         ! Generate plan for time FFT
+        ! that is NOT consistent with the reolvent definition with a negative sign
+        ! need to flip the omega in later code
         plan_fftt = fftw_plan_dft_r2c_1d(nt, vector_t,vector_om, FFTW_PATIENT )
+
+        ! Generate plan for time FFT of a complex data
+        ! use FFTW_BACKWARD because that will automatically result in an omega
+        ! that is consistent with the reolvent definition with a negative sign
+        plan_fftt_c2c = fftw_plan_dft_1d( nt, vector_tom_c2c, vector_tom_c2c, FFTW_BACKWARD, FFTW_PATIENT)
     end subroutine fft_plan
 
 
@@ -328,6 +337,45 @@ contains
             ENDDO
         ENDDO
     end subroutine fftt
+
+
+    ! subroutine fftt_c2c( matrix )
+    ! Computes the fft in time for a 3d complex matrix
+    ! This is an inplace transform
+    !
+    ! Arguments
+    !   matrix: [double real, size (:,:,nt), Input/Output]
+    !           Time domain data as the input. The third dimension needs to be time
+    !           The matrix get updated to become frequency domain data.
+    !           The third dimension is omega.
+    !           Note that omega is consistent with the resolvent definition with a negative sign
+    subroutine fftt_c2c( matrix )
+        complex(kind=dp), intent(inout), dimension(:,:,:) :: matrix
+
+        integer :: ii, jj
+        integer :: size_matrix(3), size_dim1, size_dim2
+
+        ! get matrix dimensions
+        size_matrix = shape(matrix)
+        size_dim1   = size_matrix(1)
+        size_dim2   = size_matrix(2)
+
+        ! loop over dimension 1 and 2 and transform dimension 3 (which is time)
+        DO jj = 1, size_dim2
+            DO ii = 1, size_dim1
+                ! copy the input data matrix to the FFT vector
+                vector_tom_c2c(:) = matrix(ii,jj,:)
+
+                ! perform transform
+                call fftw_execute_dft( plan_fftt_c2c, vector_tom_c2c, vector_tom_c2c )
+                ! This part already conforms to the resolvent standart with negative sign for omega
+                ! wiht the use of FFT_BACKWARD instead of FFT_FORWARD
+
+                ! copy the transformed vector to the output data matrix
+                matrix(ii,jj,:) = vector_tom_c2c(:) /real(nt,dp)
+            ENDDO
+        ENDDO
+    end subroutine fftt_c2c
 
 
 end module fourier_dp
