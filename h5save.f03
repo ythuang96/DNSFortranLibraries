@@ -6,7 +6,7 @@ module h5save
     private
 #   include "parameters"
 
-    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_C2, h5save_R2
+    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_R1, h5save_C2, h5save_R2
     public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3, h5save_C3Partial_SingleDim2
     public :: h5save_C3Serial_dim3, h5save_C3Serial_dim2
 
@@ -296,6 +296,65 @@ contains
         ! Deallocate temp buffer
         DEALLOCATE(temp)
     end subroutine h5save_C2
+
+
+    ! subroutine h5save_R1( filename, varname, vector )
+    ! save a real rank 1 vector to h5 file
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name (real 1d vector)
+    !   vector  : [double/single 1d vector, Input] data to be saved
+    subroutine h5save_R1( filename, varname, vector )
+        character(len=*), intent(in) :: filename, varname
+        real(kind=cp), intent(in), dimension(:) :: vector
+
+        character(len=100) :: dset_name ! dataset name
+        integer(HSIZE_T), dimension(1) :: data_dim ! data dimensions
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id  ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: dset_id ! dataset id
+
+        logical :: file_exists
+
+
+        ! get vector dimensions
+        data_dim = shape(vector)
+
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Check if file exist
+        INQUIRE(FILE=filename, EXIST=file_exists)
+        if ( file_exists ) then
+            ! If file already exist, then open file with read and write access
+            call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        else
+            ! Create new file
+            CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
+        endif
+
+        dset_name = varname
+        ! Create dataspace with rank 1 and size data_dim
+        CALL h5screate_simple_f(1, data_dim, dspace_id, error)
+        ! Create double/single precision dataset with path '/var' and write data
+        if ( cp .eq. dp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, vector, data_dim, error)
+        else if ( cp .eq. sp ) then
+            CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
+            CALL h5dwrite_f(dset_id, H5T_IEEE_F32LE, vector, data_dim, error)
+        endif
+        ! Close dataset
+        CALL h5dclose_f(dset_id, error)
+        ! Close dataspace
+        CALL h5sclose_f(dspace_id, error)
+
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+    end subroutine h5save_R1
 
 
     ! subroutine h5save_R2( filename, varname, matrix )
