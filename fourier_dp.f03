@@ -306,12 +306,19 @@ contains
     !               Frequency domain data. The third dimension is omega,
     !               with the redundant (conjugate) data removed.
     !               Note that omega is consistent with the resolvent definition with a negative sign
+    ! Note that this function takes the parameter WindowFuncion (a string)
+    ! which can be set to "None" (for no window function) or "Hamming"
+    ! No correction factor is applied with the window function
     subroutine fftt( matrix_in, matrix_out )
         real   (kind=dp), intent( in), dimension(:,:,:) :: matrix_in
         complex(kind=dp), intent(out), dimension(:,:,:) :: matrix_out
 
         integer :: ii, jj, kk
         integer :: size_matrix(3), size_dim1, size_dim2
+
+        real   (kind=dp) :: pi
+        ! pi
+        pi = 4.0_dp * atan(1.0_dp)
 
         ! get matrix dimensions
         size_matrix = shape(matrix_in)
@@ -322,7 +329,12 @@ contains
         DO jj = 1, size_dim2
             DO ii = 1, size_dim1
                 DO kk = 1,nt
-                    vector_t(kk) = matrix_in(ii,jj,kk)
+                    if (WindowFunction .eq. "None" ) then ! No window function
+                        vector_t(kk) = matrix_in(ii,jj,kk)
+                    else if (WindowFunction .eq. "Hamming" ) then ! Hamming function
+                        vector_t(kk) = matrix_in(ii,jj,kk) &
+                        * (0.54_dp - 0.46_dp * cos(2.0_dp * pi * real(kk-1,dp)/real(nt-1,dp)))
+                    endif
                 ENDDO
 
                 ! perform transform
