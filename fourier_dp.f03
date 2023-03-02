@@ -307,7 +307,7 @@ contains
     !               with the redundant (conjugate) data removed.
     !               Note that omega is consistent with the resolvent definition with a negative sign
     ! Note that this function takes the parameter WindowFuncion (a string)
-    ! which can be set to "None" (for no window function) or "Hamming"
+    ! which can be set to "None" (for no window function) or "Hamming" or "Hann"
     ! No correction factor is applied with the window function
     subroutine fftt( matrix_in, matrix_out )
         real   (kind=dp), intent( in), dimension(:,:,:) :: matrix_in
@@ -334,6 +334,9 @@ contains
                     else if (WindowFunction .eq. "Hamming" ) then ! Hamming function
                         vector_t(kk) = matrix_in(ii,jj,kk) &
                         * (0.54_dp - 0.46_dp * cos(2.0_dp * pi * real(kk-1,dp)/real(nt-1,dp)))
+                    else if (WindowFunction .eq. "Hann" ) then ! Hann function
+                        vector_t(kk) = matrix_in(ii,jj,kk) &
+                        * (0.50_dp - 0.50_dp * cos(2.0_dp * pi * real(kk-1,dp)/real(nt-1,dp)))
                     endif
                 ENDDO
 
