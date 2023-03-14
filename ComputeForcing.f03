@@ -20,7 +20,7 @@ contains
     !   yplane :           [Integer, Input]
     !                      index of this current y plane
     !   fxf,fyf,fzf:       [double/single complex, Size (mxf,mzf), Output]
-    !                      (mean subtracted) non-linear forcing at a single y plane
+    !                      not mean subtracted non-linear forcing at a single y plane
     subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
         use FFT_PRECISION_CONTROL, only: ifft2, fft2
         use wavenumbers, only: kx_derivative, kz_derivative
