@@ -86,7 +86,7 @@ contains
         call ifftz_fillnegkx( kz_derivative(wf), dwdz_t )
 
         ! loop over nkx_pos
-        DO jj = 1, nkx_pos, DS_kx
+        DO jj = 1, nkx_pos
             ! kx1 is non-negative, with size nkx_pos
             ! kx2 is the full range, with size nkx_full
             !
@@ -196,7 +196,7 @@ contains
         call ifftx_fillnegkz( kz_derivative(wf), dwdz_t )
 
         ! loop over nkz_pos
-        DO jj = 1, nkz_pos, DS_kz
+        DO jj = 1, nkz_pos
             ! kz1 is non-negative, with size nkz_pos
             ! kz2 is the full range, with size nkz_full
             !
