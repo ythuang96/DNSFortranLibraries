@@ -23,17 +23,10 @@ contains
     !                      (mean subtracted) non-linear forcing at a single y plane
     subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
         use FFT_PRECISION_CONTROL, only: ifft2, fft2
-        use wavenumbers, only: kx_derivative, kz_derivative, truncate_kx_2D
+        use wavenumbers, only: kx_derivative, kz_derivative
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         complex(kind=cp), intent(out), dimension(mxf,mzf) :: fxf,fyf,fzf
         integer, intent(in) :: yplane
-
-        ! Global stats variables
-        real(kind=cp) :: U_cl, u00, v00, w00, fx00, fy00, fz00
-        common /stats/ U_cl, &                           ! U_cl
-                       u00(my), v00(my), w00(my), &      ! kx = kz = 0 modes of velocity
-                       fx00(my), fy00(my), fz00(my)      ! kx = kz = 0 modes of forcing
-        save /stats/
 
         ! velocities in physical space
         real(kind=cp), dimension(mgalx,mgalz) :: u, v, w
@@ -57,16 +50,6 @@ contains
         f = - u * ddx - v * ddy - w * ddz
         ! fft2 of fx back into the Fourier space
         call fft2( f, fxf )
-        ! Mean subtract
-        if ( meansubtract1D_forcing .eqv. .true. ) then
-            fxf(1,1) = fxf(1,1) - fx00(yplane)
-        endif
-        ! kx = 0 subtract
-        if ( subtract_kx0_forcing .eqv. .true. ) then
-            fxf(1,:) = (0.0_cp, 0.0_cp)
-        endif
-        ! kx truncation
-        call truncate_kx_2D( fxf, truncate_kx_forcing )
 
         ! ----------------------------- Compute fy -----------------------------
         ! Compute the 3 derivatives of v
@@ -77,16 +60,6 @@ contains
         f = - u * ddx - v * ddy - w * ddz
         ! fft2 of fy back into the Fourier space
         call fft2( f, fyf )
-        ! Mean subtract
-        if ( meansubtract1D_forcing .eqv. .true. ) then
-            fyf(1,1) = fyf(1,1) - fy00(yplane)
-        endif
-        ! kx = 0 subtract
-        if ( subtract_kx0_forcing .eqv. .true. ) then
-            fyf(1,:) = (0.0_cp, 0.0_cp)
-        endif
-        ! kx truncation
-        call truncate_kx_2D( fyf, truncate_kx_forcing )
 
         ! ----------------------------- Compute fz -----------------------------
         ! Compute the 3 derivatives of w
@@ -97,16 +70,6 @@ contains
         f = - u * ddx - v * ddy - w * ddz
         ! fft2 of fz back into the Fourier space
         call fft2( f, fzf )
-        ! Mean subtract
-        if ( meansubtract1D_forcing .eqv. .true. ) then
-            fzf(1,1) = fzf(1,1) - fz00(yplane)
-        endif
-        ! kx = 0 subtract
-        if ( subtract_kx0_forcing .eqv. .true. ) then
-            fzf(1,:) = (0.0_cp, 0.0_cp)
-        endif
-        ! kx truncation
-        call truncate_kx_2D( fzf, truncate_kx_forcing )
 
     end subroutine compute_forcing
 
