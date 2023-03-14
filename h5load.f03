@@ -196,6 +196,8 @@ contains
 
         INTEGER(HSIZE_T), DIMENSION(3) :: data_dims ! data dimensions
 
+        LOGICAL :: oldversion, newversion ! DNS dataset version checking
+
 
         ! data dimensions
         data_dims = (/ mxf,mzf,myf /)
@@ -210,24 +212,47 @@ contains
             stop
         endif
 
+        ! check the saving format of the file
+        CALL h5lexists_f(file_id, "/velocityFieldsFourier", oldversion, error) ! old version file
+        CALL h5lexists_f(file_id, "/u"                    , newversion, error) ! new version file
+
         ! Open an existing dataset and get data
         ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
         ! consistent with the variable type of output
-        ! ----------------------------- Real part -----------------------------
-        ! Open dataset
-        CALL h5dopen_f(file_id, ("/velocityFieldsFourier/" // varname // "RealPart"), dset_id, error)
-        ! Read dataset
-        CALL h5dread_f(dset_id, H5T_IEEE_F32LE, rtemp, data_dims, error)
-        ! Close dataset
-        CALL h5dclose_f(dset_id, error)
-        ! --------------------------- Imaginary part ---------------------------
-        ! Open dataset
-        CALL h5dopen_f(file_id, ("/velocityFieldsFourier/" // varname // "ImaginaryPart"), dset_id, error)
-        ! Read dataset
-        CALL h5dread_f(dset_id, H5T_IEEE_F32LE, itemp, data_dims, error)
-        ! Close dataset
-        CALL h5dclose_f(dset_id, error)
+        ! ------------------------ OLD Version DNS data ------------------------
+        if (( oldversion .eqv. .TRUE. ) .and. (newversion .eqv. .FALSE. )) then
+            ! --------------------------- Real part ---------------------------
+            ! Open dataset
+            CALL h5dopen_f(file_id, ("/velocityFieldsFourier/" // varname // "RealPart"), dset_id, error)
+            ! Read dataset
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, rtemp, data_dims, error)
+            ! Close dataset
+            CALL h5dclose_f(dset_id, error)
+            ! ------------------------- Imaginary part -------------------------
+            ! Open dataset
+            CALL h5dopen_f(file_id, ("/velocityFieldsFourier/" // varname // "ImaginaryPart"), dset_id, error)
+            ! Read dataset
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, itemp, data_dims, error)
+            ! Close dataset
+            CALL h5dclose_f(dset_id, error)
 
+        ! ------------------------ NEW Version DNS data ------------------------
+        else if (( oldversion .eqv. .FALSE. ) .and. (newversion .eqv. .TRUE. )) then
+            ! --------------------------- Real part ---------------------------
+            ! Open dataset
+            CALL h5dopen_f(file_id, ("/" // varname // "/" // varname // "_REAL"), dset_id, error)
+            ! Read dataset
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, rtemp, data_dims, error)
+            ! Close dataset
+            CALL h5dclose_f(dset_id, error)
+            ! ------------------------- Imaginary part -------------------------
+            ! Open dataset
+            CALL h5dopen_f(file_id, ("/" // varname // "/" // varname // "_IMAG"), dset_id, error)
+            ! Read dataset
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, itemp, data_dims, error)
+            ! Close dataset
+            CALL h5dclose_f(dset_id, error)
+        endif
 
         ! Build data from real and imaginary part with conversion to cp
         Buffer = CMPLX( REAL(rtemp, cp), REAL(itemp, cp) , cp )
