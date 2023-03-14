@@ -306,12 +306,13 @@ contains
     !               Frequency domain data. The third dimension is omega,
     !               with the redundant (conjugate) data removed.
     !               Note that omega is consistent with the resolvent definition with a negative sign
-    ! Note that this function takes the parameter WindowFuncion (a string)
-    ! which can be set to "None" (for no window function) or "Hamming" or "Hann"
-    ! No correction factor is applied with the window function
-    subroutine fftt( matrix_in, matrix_out )
+    !   WindowFuncion: [string]
+    !                  "None" (no window function) or "Hamming" or "Hann"
+    !                  No correction factor is applied with the window function
+    subroutine fftt( matrix_in, matrix_out, WindowFunction )
         real   (kind=dp), intent( in), dimension(:,:,:) :: matrix_in
         complex(kind=dp), intent(out), dimension(:,:,:) :: matrix_out
+        character(len=*), intent(in) :: WindowFunction
 
         integer :: ii, jj, kk
         integer :: size_matrix(3), size_dim1, size_dim2
