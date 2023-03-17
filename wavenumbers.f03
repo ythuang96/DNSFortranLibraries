@@ -102,21 +102,24 @@ contains
     end function kz_derivative
 
 
-    ! subroutine truncate_kx_2D( matrix )
+    ! subroutine truncate_kx_2D( matrix, onoff, truncation_cutoff  )
     ! This function truncate the data in kx by setting all data with kx wavenumber
-    ! greater than kx_max_truncate to 0 (kx = kx_max_truncate is retained)
-    ! If kx_max_truncate < max(kx_pos) then this function does nothing
+    ! greater than truncation_cutoff to 0 (kx = truncation_cutoff is retained)
+    ! If truncation_cutoff < max(kx_pos) then this function does nothing
     !
     ! Arguments:
     !   matrix : [double/single complex, size (mxf,mzf), Input/Output]
     !            Any Forier domain data at a single y plane
     !   onoff  : [logical]
     !            turn on or turn off truncation
-    !            if set to false, no truncation is performed regardless of the parameter kx_max_truncate
-    !            if set to true , truncation is performed if kx_max_truncate < kx_max
-    subroutine truncate_kx_2D( matrix, onoff)
+    !            if set to false, no truncation is performed regardless of the parameter truncation_cutoff
+    !            if set to true , truncation is performed if truncation_cutoff < kx_max
+    !   truncation_cutoff: [double/single real, Input]
+    !                      The cutoff value for kx truncation
+    subroutine truncate_kx_2D( matrix, onoff, truncation_cutoff )
         complex(kind=cp), intent(inout), dimension(mxf, mzf) :: matrix
         logical, intent(in) :: onoff
+        real(kind=cp), intent(in) ::  truncation_cutoff
 
         real(kind=cp) :: kx_max
         integer :: loc(1), ind
@@ -126,11 +129,11 @@ contains
             ! Max value in the kx wavenumber vector
             kx_max = maxval(kx_pos)
 
-            ! Truncate data if kx_max_truncate is smaller than kx_max
+            ! Truncate data if truncation_cutoff is smaller than kx_max
             ! Otherwise, no truncation is needed
-            if (kx_max_truncate .lt. kx_max) then
-                ! find the index where kx_pos if first larger than kx_max_truncate
-                loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
+            if (truncation_cutoff .lt. kx_max) then
+                ! find the index where kx_pos if first larger than truncation_cutoff
+                loc = findloc( (kx_pos .gt. truncation_cutoff), .true. )
                 ind = loc(1)
 
                 ! set data to 0 for kx greater than the set truncation point
@@ -140,21 +143,24 @@ contains
     end subroutine truncate_kx_2D
 
 
-    ! subroutine truncate_kx_3D( matrix )
+    ! subroutine truncate_kx_3D( matrix, onoff, truncation_cutoff )
     ! This function truncate the data in kx by setting all data with kx wavenumber
-    ! greater than kx_max_truncate to 0 (kx = kx_max_truncate is retained)
-    ! If kx_max_truncate < max(kx_pos) then this function does nothing
+    ! greater than truncation_cutoff to 0 (kx = truncation_cutoff is retained)
+    ! If truncation_cutoff < max(kx_pos) then this function does nothing
     !
     ! Arguments:
     !   matrix : [double/single complex, size (mxf,mzf,:), Input/Output]
     !            Any Forier domain data at a all y planes
     !   onoff  : [logical]
     !            turn on or turn off truncation
-    !            if set to false, no truncation is performed regardless of the parameter kx_max_truncate
-    !            if set to true , truncation is performed if kx_max_truncate < kx_max
-    subroutine truncate_kx_3D( matrix , onoff)
+    !            if set to false, no truncation is performed regardless of the parameter truncation_cutoff
+    !            if set to true , truncation is performed if truncation_cutoff < kx_max
+    !   truncation_cutoff: [double/single real, Input]
+    !                      The cutoff value for kx truncation
+    subroutine truncate_kx_3D( matrix, onoff, truncation_cutoff )
         complex(kind=cp), intent(inout), dimension(:, :, :) :: matrix
         logical, intent(in) :: onoff
+        real(kind=cp), intent(in) ::  truncation_cutoff
 
         real(kind=cp) :: kx_max
         integer :: loc(1), ind
@@ -164,11 +170,11 @@ contains
             ! Max value in the kx wavenumber vector
             kx_max = maxval(kx_pos)
 
-            ! Truncate data if kx_max_truncate is smaller than kx_max
+            ! Truncate data if truncation_cutoff is smaller than kx_max
             ! Otherwise, no truncation is needed
-            if (kx_max_truncate .lt. kx_max) then
-                ! find the index where kx_pos if first larger than kx_max_truncate
-                loc = findloc( (kx_pos .gt. kx_max_truncate), .true. )
+            if (truncation_cutoff .lt. kx_max) then
+                ! find the index where kx_pos if first larger than truncation_cutoff
+                loc = findloc( (kx_pos .gt. truncation_cutoff), .true. )
                 ind = loc(1)
 
                 ! set data to 0 for kx greater than the set truncation point
