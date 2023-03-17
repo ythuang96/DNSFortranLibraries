@@ -9,6 +9,7 @@ module parallelization
     public :: change_dim2slice_to_dim3slice, change_dim3slice_to_dim2slice
     public :: changeR_dim3slice_to_dim2slice
     public :: allreduce_C2
+    public :: bcast_C2
 
 
 contains
@@ -719,5 +720,57 @@ contains
         deallocate( recv_buffer )
 
     end subroutine allreduce_C2
+
+
+    ! subroutine bcast_C2(matrix, myid)
+    ! This function peforms MPI_BCAST on a 2d complex matrix
+    !
+    ! Arguments:
+    !   matrix: [double/single, size (size_dim1, size_dim2), Input/Output]
+    !           the data matrix
+    !           before calling: this variable in processor 0 contains data, and empty in all other processors
+    !           after calling: this variable in all processors contain data
+    !   myid:   [integer, Input]
+    !           processor ID
+    subroutine bcast_C2(matrix, myid)
+        complex(kind=cp), intent(inout), dimension(:,:) ::  matrix ! size (size_dim1, size_dim2)
+        integer, intent(in) :: myid
+
+        ! send and recv buffers
+        real(kind=cp), dimension(:,:,:), allocatable :: buffer
+        integer :: size_matrix(2), count
+        ! MPI
+        integer :: ierr
+
+
+        ! get matrix dimensions
+        size_matrix = shape( matrix )
+
+        ! Allocate buffer
+        allocate( buffer(size_matrix(1), size_matrix(2), 2) )
+
+        ! Data count (times 2 for real and imaginary parts)
+        count = size_matrix(1) * size_matrix(2) * 2
+        ! Master packages real and imaginary parts
+        if (myid .eq. 0) then
+            buffer(:,:,1) =  real( matrix(:,:), cp)
+            buffer(:,:,2) = aimag( matrix(:,:) )
+        endif
+
+        ! Send data to all processors
+        if ( cp .eq. dp ) then
+            call MPI_BCAST(buffer, count, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+        else if ( cp .eq. sp ) then
+            call MPI_BCAST(buffer, count, MPI_REAL            , 0, MPI_COMM_WORLD, ierr)
+        endif
+
+        ! All processors build final result from real and imaginary parts
+        matrix = CMPLX( buffer(:,:,1), buffer(:,:,2), cp)
+
+        ! Deallocate buffer
+        deallocate( buffer )
+
+    end subroutine bcast_C2
+
 
 end module parallelization
