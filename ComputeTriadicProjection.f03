@@ -280,11 +280,11 @@ contains
     ! This function computes the projection coefficient P_om at a given yplane
     !
     ! Arguments:
-    !   u_xom, v_xom, w_xom      : [double/single complex, Size (mgalx, b_z:e_z, nom/2+1), Input]
+    !   u_xom, v_xom, w_xom      : [double/single complex, Size (mgalx, b_z:e_z, nt/2+1), Input]
     !                              velocity fields at a single y plane, in physical x, z space and Fourier omega space, distributed in z
-    !   ddx_xom, ddy_xom, ddz_xom: [double/single complex, Size (mgalx, b_z:e_z, nom/2+1), Input]
+    !   ddx_xom, ddy_xom, ddz_xom: [double/single complex, Size (mgalx, b_z:e_z, nt/2+1), Input]
     !                              x, y, z derivatives
-    !   f_xom                    : [double/single complex, Size (mgalx, b_z:e_z, nom/2+1), Input]
+    !   f_xom                    : [double/single complex, Size (mgalx, b_z:e_z, nt/2+1), Input]
     !                              non-linear forcing
     !   P_om                     : [double/single complex, Size (nkx_pos,nkx_full), Output]
     !                              The computed projection coefficients
@@ -300,10 +300,10 @@ contains
         use mpi
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(:,:,:) :: u_xom,v_xom,w_xom, ddx_xom,ddy_xom,ddz_xom, f_xom
-        complex(kind=cp), intent(out), dimension(nom/2+1,nom) :: P_om
+        complex(kind=cp), intent(out), dimension(nt/2+1,nt) :: P_om
 
         ! P_om for the current processor
-        complex(kind=cp), dimension(nom/2+1,nom) :: P_local
+        complex(kind=cp), dimension(nt/2+1,nt) :: P_local
         ! Variables with full omega range
         complex(kind=cp), dimension(:,:,:), allocatable :: ddx_fullom, ddy_fullom, ddz_fullom, f_fullom
 
@@ -314,7 +314,7 @@ contains
         integer :: jj, kk
 
         ! Variables for MPI
-        real   (kind=cp), dimension(nom/2+1,nom,2) :: send_buffer, recv_buffer ! send and recieve buffers
+        real   (kind=cp), dimension(nt/2+1,nt,2) :: send_buffer, recv_buffer ! send and recieve buffers
         integer :: count ! allreduce data count
         integer :: ierr ! MPI error
 
@@ -322,10 +322,10 @@ contains
         ! Input matrix dimensions
         data_dim = shape(u_xom)
         ! Allocate temp variables with full omega range
-        allocate( ddx_fullom(data_dim(1), data_dim(2), nom) )
-        allocate( ddy_fullom(data_dim(1), data_dim(2), nom) )
-        allocate( ddz_fullom(data_dim(1), data_dim(2), nom) )
-        allocate(   f_fullom(data_dim(1), data_dim(2), nom) )
+        allocate( ddx_fullom(data_dim(1), data_dim(2), nt) )
+        allocate( ddy_fullom(data_dim(1), data_dim(2), nt) )
+        allocate( ddz_fullom(data_dim(1), data_dim(2), nt) )
+        allocate(   f_fullom(data_dim(1), data_dim(2), nt) )
         ! Allocate temp variables for u, v, w at a single omega for the loop
         allocate( u_temp(data_dim(1), data_dim(2)) )
         allocate( v_temp(data_dim(1), data_dim(2)) )
@@ -342,9 +342,9 @@ contains
         call fillnegomega(   f_xom,   f_fullom )
 
         ! ------------------------- Loop over omega_1 -------------------------
-        DO jj = 1, nom/2+1
-            ! om1 is non-negative omega, with size nom/2+1
-            ! om2 is the full range omega, with size nom
+        DO jj = 1, nt/2+1
+            ! om1 is non-negative omega, with size nt/2+1
+            ! om2 is the full range omega, with size nt
             !
             ! The larger om1 is, the smaller om2 has to be to keep om3 in range.
             ! If om1 = 0, then om2, om3 will both be the full range.
@@ -358,7 +358,7 @@ contains
             w_temp = w_xom(:,:,jj)
 
             ! Loop over the active range of om2, which has (jj-1) points from the highest kx2 removed
-            DO kk = 1, nom-(jj-1)
+            DO kk = 1, nt-(jj-1)
                 P_local(jj,kk) = SUM( &
                     ! compute f for the current om1 + om2
                     (-u_temp*ddx_fullom(:,:,kk) -v_temp*ddy_fullom(:,:,kk) -w_temp*ddz_fullom(:,:,kk)) &
@@ -375,7 +375,7 @@ contains
         send_buffer(:,:,1) =  real( P_local(:,:), cp)
         send_buffer(:,:,2) = aimag( P_local(:,:) )
         ! Data count (times 2 for real and imaginary parts)
-        count = (nom/2+1) * nom * 2
+        count = (nt/2+1) * nt * 2
         ! Sum data over all processors
         ! (note that all data are already divided by mgalz, this sum is therefore the average in z)
         if      ( cp .eq. dp ) then
@@ -402,19 +402,19 @@ contains
     ! This subroutine fills the negative omega parts for a matrix
     !
     ! Arguements
-    !   matrix_in : [complex matrix size (:,:,nom/2+1), Input ]
+    !   matrix_in : [complex matrix size (:,:,nt/2+1), Input ]
     !               matrix with omega as dimension 3, only the non-negative omegas
-    !   matrix_out: [complex matrix size (:,:,nom    ), Output]
+    !   matrix_out: [complex matrix size (:,:,nt    ), Output]
     !               matrix with both postivie and negative omega
     !               dimension 3 corresponds to omegas that are montonically increasing
     !
     ! Data Arrangement
     !   dimension 3 of input:
-    !     matrix index         1      2    ...       nom/2         nom/2+1
-    !     corresponding om:  0(DC)   dom   ...   (nom/2-1)*dom  omega_nyquist
+    !     matrix index         1      2    ...       nt/2         nt/2+1
+    !     corresponding om:  0(DC)   dom   ...   (nt/2-1)*dom  omega_nyquist
     !   dimension 3 of output:
-    !     matrix index              1         ...   nom/2-1  nom/2   nom/2+1   ...       nom-1          nom
-    !     corresponding om:  -(nom/2-1)*dom   ...    -dom    0(DC)     dom     ...   (nom/2-1)*dom  omega_nyquist
+    !     matrix index              1         ...   nt/2-1  nt/2   nt/2+1   ...       nt-1          nt
+    !     corresponding om:  -(nt/2-1)*dom   ...    -dom    0(DC)     dom     ...   (nt/2-1)*dom  omega_nyquist
     subroutine fillnegomega(matrix_in, matrix_out)
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(:,:,:) :: matrix_in
