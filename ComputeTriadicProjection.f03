@@ -5,32 +5,9 @@ module ComputeTriadicProjection
     private
 #   include "parameters"
 
-    public :: compute_Pkx_Pkz, compute_Pom
+    public :: compute_Pkx, compute_Pkz, compute_Pom
 
 contains
-    subroutine compute_Pkx_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, Px_kx, Py_kx, Pz_kx, Px_kz, Py_kz, Pz_kz)
-        use ComputeForcing, only: compute_forcing
-        ! Input/Output
-        complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
-        integer, intent(in) :: yplane
-        complex(kind=cp), intent(inout), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
-        complex(kind=cp), intent(inout), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
-        ! Forcing
-        complex(kind=cp), dimension(mxf,mzf) :: fxf,fyf,fzf
-
-
-        ! Compute forcing
-        call compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
-
-        ! Compute P_kx
-        call compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
-
-        ! Compute P_kz
-        call compute_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kz, Py_kz, Pz_kz)
-
-    end subroutine compute_Pkx_Pkz
-
-
     ! subroutine compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
     ! This function computes the projection coefficient P_kx at a given yplane
     !
