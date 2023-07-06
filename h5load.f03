@@ -6,10 +6,67 @@ module h5load
     private
 #   include "parameters"
 
-    public :: h5load_R1, h5load_C2, h5load_C3, h5loadVelocities
+    public :: h5load_R, h5load_R1, h5load_C2, h5load_C3, h5loadVelocities
+
+
+    ! Note:
+    ! h5load_R  reads a real scalar
+    ! h5load_R1 reads a real rank 1 matrix (a vector)
+    !           This will not work if the h5 data size is scalar
+    !           It will work if the h5 data size is a 1X1 matrix (technically a scalar), but it will be easier to use h5load_R
+    ! h5load_C2 reads a complex rank 2 matrix
+    ! h5load_C3 reads a complex rank 3 matrix
 
 
 contains
+    ! function output = h5load_R(filename, varname )
+    ! Read real scalar from h5 file
+    ! Arguments:
+    !   filename: [string, Input]
+    !             h5 filename with path
+    !   varname : [string, Input]
+    !             variable name in h5 file, must be real numerical scalar
+    ! Output:
+    !   output:   [double/single scalar]
+    function h5load_R(filename, varname ) result(scalar)
+        character(len=*), intent(in) :: filename, varname
+        real(kind=dp) :: buffer
+        real(kind=cp) :: scalar
+
+        INTEGER(HID_T) :: file_id        ! File identifier
+        INTEGER(HID_T) :: dset_id        ! Dataset identifier
+
+        INTEGER(HSIZE_T), DIMENSION(1) :: data_dims
+
+        INTEGER :: error ! Error flag
+
+
+        ! Initialize FORTRAN interface.
+        CALL h5open_f(error)
+        ! Open an existing file with read only
+        CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, varname, dset_id, error)
+
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of buffer
+        ! this will default to a double precision read, and later converted to cp
+        data_dims(1) = 1
+        CALL h5dread_f(dset_id, H5T_IEEE_F64LE, buffer, data_dims, error)
+
+        ! Convert to cp
+        scalar = real(buffer, cp)
+
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+        ! close file
+        CALL h5fclose_f(file_id, error)
+        ! close h5 interface
+        CALL h5close_f(error)
+    end function h5load_R
+
+
     ! function ouput = h5load_R1(filename, varname )
     ! Read real rank 1 matrix (vector) from h5 file
     ! Arguments:
@@ -48,6 +105,18 @@ contains
         dim1 = data_dims(1)
         dim2 = data_dims(2)
         CALL h5sclose_f(space_id, error)
+
+        ! Check the dimensions, if it is a scalar, then throw an error
+        if ((dim1 .eq. 0) .and. (dim2 .eq. 0)) then
+            write(*,*) "Error: reading a scalar with h5load_R1, use h5load_R instead"
+            ! close dataset
+            CALL h5dclose_f(dset_id, error)
+            ! close file
+            CALL h5fclose_f(file_id, error)
+            ! close h5 interface
+            CALL h5close_f(error)
+            stop 2
+        endif
 
         ! Allocate dimensions to dset_data for reading
         ALLOCATE(matrix(dim1,dim2))
