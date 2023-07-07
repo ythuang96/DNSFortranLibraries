@@ -6,7 +6,7 @@ module h5load
     private
 #   include "parameters"
 
-    public :: h5load_R, h5load_R1, h5load_C2, h5load_C3, h5loadVelocities
+    public :: h5load_R, h5load_R1, h5load_C2, h5load_C3, h5loadVelocities, h5load_C3_partial
 
 
     ! Note:
@@ -300,7 +300,6 @@ contains
         ! Get data
         ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
         ! consistent with the variable type of matrix
-        ! this will default to a double precision read, and later converted to cp
         if ( cp .eq. dp ) then
             CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix_r, data_dims, error)
         else if ( cp .eq. sp ) then
@@ -317,7 +316,6 @@ contains
         ! Get data
         ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
         ! consistent with the variable type of matrix
-        ! this will default to a double precision read, and later converted to cp
         if ( cp .eq. dp ) then
             CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix_i, data_dims, error)
         else if ( cp .eq. sp ) then
@@ -339,7 +337,6 @@ contains
         DEALLOCATE( matrix_i )
 
     end function h5load_C3
-
 
 
     ! subroutine h5loadVelocities( filename, varname, Buffer )
@@ -430,6 +427,138 @@ contains
         ! close h5 interface
         CALL h5close_f(error)
     end subroutine h5loadVelocities
+
+
+    ! function output = h5load_C3_partial( filename, varname, read_offset, read_dims )
+    ! Read a partial complex rank 3 matrix from h5 file
+    ! Arguments:
+    !   filename   : [string, Input]
+    !                h5 filename with path
+    !   varname    : [string, Input]
+    !                variable name in h5 file, must be complex numerical rank 3 matrix
+    !   read_offset: [integer, size(3), Input]
+    !                the offset in each dimension, offset = 0 indicates no offset
+    !   read_dims  : [integer, size(3), Input]
+    !                the dimension of the partial data in each dimension
+    ! Output:
+    !   output:   [cp percision complex matrix of size read_dims]
+    function h5load_C3_partial(filename, varname, read_offset, read_dims ) result(matrix)
+        character(len=*), intent(in) :: filename, varname
+        integer, dimension(3), intent(in) :: read_offset, read_dims
+        complex(kind=cp), dimension(:,:,:), allocatable :: matrix
+        real(kind=cp), dimension(:,:,:), allocatable :: matrix_r, matrix_i
+
+        character(len=100) :: dset_name ! dataset name
+
+        INTEGER(HID_T) :: file_id        ! File identifier
+        INTEGER(HID_T) :: dset_id        ! Dataset identifier
+        INTEGER(HID_T) :: space_id       ! Dataspace identifier
+        INTEGER(HID_T) :: mspace_id      ! Memory space identifier
+
+        INTEGER :: error ! Error flag
+        INTEGER :: dim1, dim2, dim3 ! matrix dimensions
+
+        INTEGER(HSIZE_T), DIMENSION(3) :: data_dims
+        INTEGER(HSIZE_T), DIMENSION(3) :: max_dims
+        INTEGER(HSIZE_T), DIMENSION(3) :: partial_offset ! offset for the partial data, not offset = 0 is no offset
+        INTEGER(HSIZE_T), DIMENSION(3) :: partial_dims ! dimension for the partial data
+
+
+        ! Initialize FORTRAN interface.
+        CALL h5open_f(error)
+        ! Open an existing file with read only
+        CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
+
+        ! ----------------------- Get Matrix Dimensions -----------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        !Get dataspace ID
+        CALL h5dget_space_f(dset_id, space_id, error)
+        !Get dataspace dims
+        CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
+        dim1 = data_dims(1)
+        dim2 = data_dims(2)
+        dim3 = data_dims(3)
+        CALL h5sclose_f(space_id, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! partial data dimensions
+        partial_dims = read_dims
+        partial_offset = read_offset
+        ! Create a memory dataspace matching the dimensions of the partial subset
+        call h5screate_simple_f(3, partial_dims, mspace_id, error)
+
+
+        ! -------------------------- Allocate Matrix --------------------------
+        ALLOCATE( matrix_r(read_dims(1),read_dims(2),read_dims(3)))
+        ALLOCATE( matrix_i(read_dims(1),read_dims(2),read_dims(3)))
+
+        ! ----------------------------- Real Part -----------------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        ! Get dataspace ID
+        call h5dget_space_f(dset_id, space_id, error)
+        ! Select hyperslab with offset
+        call h5sselect_hyperslab_f(space_id, H5S_SELECT_SET_F, partial_offset, partial_dims, error)
+
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of matrix
+        if ( cp .eq. dp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix_r, partial_dims, error, mspace_id, space_id)
+        else if ( cp .eq. sp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, matrix_r, partial_dims, error, mspace_id, space_id)
+        endif
+
+        ! clsoe dataspace
+        CALL h5sclose_f(space_id, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! --------------------------- Imaginary Part ---------------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_IMAG"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        ! Get dataspace ID
+        call h5dget_space_f(dset_id, space_id, error)
+        ! Select hyperslab with offset
+        call h5sselect_hyperslab_f(space_id, H5S_SELECT_SET_F, partial_offset, partial_dims, error)
+
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of matrix
+        if ( cp .eq. dp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F64LE, matrix_i, partial_dims, error, mspace_id, space_id)
+        else if ( cp .eq. sp ) then
+            CALL h5dread_f(dset_id, H5T_IEEE_F32LE, matrix_i, partial_dims, error, mspace_id, space_id)
+        endif
+
+        ! clsoe dataspace
+        CALL h5sclose_f(space_id, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! ------------------------ Build Complex Output ------------------------
+        matrix = CMPLX( matrix_r, matrix_i, cp)
+
+        ! ------------------------------ Clean Up ------------------------------
+        ! close memory space
+        call h5sclose_f(mspace_id, error)
+        ! close file
+        CALL h5fclose_f(file_id, error)
+        ! close h5 interface
+        CALL h5close_f(error)
+        ! Deallocate
+        DEALLOCATE( matrix_r )
+        DEALLOCATE( matrix_i )
+
+    end function h5load_C3_partial
 
 
 end module h5load
