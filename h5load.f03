@@ -100,6 +100,10 @@ contains
         CALL h5dopen_f(file_id, varname, dset_id, error)
         !Get dataspace ID
         CALL h5dget_space_f(dset_id, space_id,error)
+        ! Initialize this to 0, otherwise if the data is rank 1, data_dim(2) will
+        ! remain the random initial value, which might be problematic
+        data_dims(1) = 0
+        data_dims(2) = 0
         !Get dataspace dims
         CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
         dim1 = data_dims(1)
@@ -119,6 +123,12 @@ contains
         endif
 
         ! Allocate dimensions to dset_data for reading
+        if (dim2 .eq. 0) then
+            dim2 = 1
+            ! if data is rank 1, dim2 is 0 (initial value), we will set it to 1 for
+            ! ALLOCATE(matrix(dim1,dim2))
+            ! we keep the this to rank 2 so that it can properly read NX1 vectors
+        endif
         ALLOCATE(matrix(dim1,dim2))
         ! Get data
         ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
