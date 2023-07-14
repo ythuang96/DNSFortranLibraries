@@ -7,7 +7,7 @@ module h5save
 #   include "parameters"
 
     public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_R1, h5save_C2, h5save_R2
-    public :: h5save_C3Partial_Init, h5save_C3Partial_SingleDim3, h5save_C3Partial_SingleDim2
+    public :: h5save_CPartial_Init, h5save_C3Partial_SingleDim3, h5save_C3Partial_SingleDim2
     public :: h5save_C3Serial_dim3, h5save_C3Serial_dim2
 
     ! The following standard for complex variables are used:
@@ -416,23 +416,24 @@ contains
     end subroutine h5save_R2
 
 
-    ! subroutine h5save_C3Partial_Init( filename, varname, full_data_dim )
-    ! initialize a complex rank 3 matrix to h5 file in preparation for partial data saving
+    ! subroutine h5save_CPartial_Init( filename, varname, full_data_dim )
+    ! initialize a complex rank N matrix to h5 file in preparation for partial data saving
     !
     ! Arguments:
     !   filename     : [string, Input] h5 filename with path
     !   varname      : [string, Input] variable name
-    !   full_data_dim: [integer, size 3, Input] the dimension of the full data matrix
+    !   full_data_dim: [integer, size N, Input] the dimension of the full data matrix
     !
     ! Note:
     !   This function needs to be called once and only once before any partial saving is performed
-    subroutine h5save_C3Partial_Init( filename, varname, full_data_dim)
+    subroutine h5save_CPartial_Init( filename, varname, full_data_dim)
         ! Inputs
         character(len=*), intent(in) :: filename, varname
-        integer, intent(in), dimension(3) :: full_data_dim
+        integer, intent(in), dimension(:) :: full_data_dim
 
-        integer(HSIZE_T), dimension(3) :: full_data_dim2
+        integer(HSIZE_T), dimension(:), allocatable :: full_data_dim2
         character(len=100) :: dset_name ! dataset name
+        integer :: matrix_rank
 
         integer :: error ! error flag
         INTEGER(HID_T) :: file_id   ! file id
@@ -443,6 +444,10 @@ contains
         logical :: file_exists
 
 
+        ! Get matrix rank
+        matrix_rank = size(full_data_dim)
+        ! allocate full_data_dim2
+        ALLOCATE(full_data_dim2(matrix_rank))
         ! Integer type conversion for the full data dimension
         full_data_dim2 = INT( full_data_dim, HSIZE_T)
 
@@ -467,8 +472,8 @@ contains
         ! ----------------------------- Real part -----------------------------
         dset_name = varname // "/" // varname // "_REAL"
 
-        ! Create disk dataspace with rank 3 and size full_data_dim
-        call h5screate_simple_f(3, full_data_dim2, dspace_id, error)
+        ! Create disk dataspace with rank N and size full_data_dim
+        call h5screate_simple_f(matrix_rank, full_data_dim2, dspace_id, error)
 
         ! Create double/single precision dataset with path '/var/var_REAL'
         if ( cp .eq. dp ) then
@@ -487,8 +492,8 @@ contains
         ! --------------------------- Imaginary part ---------------------------
         dset_name = varname // "/" // varname // "_IMAG"
 
-        ! Create disk dataspace with rank 3 and size full_data_dim
-        call h5screate_simple_f(3, full_data_dim2, dspace_id, error)
+        ! Create disk dataspace with rank N and size full_data_dim
+        call h5screate_simple_f(matrix_rank, full_data_dim2, dspace_id, error)
 
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
         if ( cp .eq. dp ) then
@@ -509,8 +514,10 @@ contains
         CALL h5fclose_f(file_id, error)
         ! Close FORTRAN interface
         CALL h5close_f(error)
+        ! Deallocate memory
+        DEALLOCATE(full_data_dim2)
 
-    end subroutine h5save_C3Partial_Init
+    end subroutine h5save_CPartial_Init
 
 
     ! subroutine h5save_C3Partial_SingleDim3( filename, varname, matrix, dim3index )
@@ -523,7 +530,7 @@ contains
     !   dim3index: [integer, Input] the index for the third dimension
     !
     ! Note:
-    !   The variable in this h5 file must already be initilaized using the function h5save_C3Partial_Init
+    !   The variable in this h5 file must already be initilaized using the function h5save_CPartial_Init
     subroutine h5save_C3Partial_SingleDim3( filename, varname, matrix, dim3index)
         ! Inputs
         character(len=*), intent(in) :: filename, varname
@@ -559,7 +566,7 @@ contains
         call h5open_f(error)
         ! Open file with read and write access
         call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
-        ! Group is already created by h5save_C3Partial_Init
+        ! Group is already created by h5save_CPartial_Init
 
         ! ----------------------------- Real part -----------------------------
         dset_name = varname // "/" // varname // "_REAL"
@@ -698,7 +705,7 @@ contains
 
         ! --------------- Initialize variable for partial saving ---------------
         if (myid .eq. 0) then
-            call h5save_C3Partial_Init( filename, varname, full_data_dim)
+            call h5save_CPartial_Init( filename, varname, full_data_dim)
         endif
 
         ! ------------- Save data to h5 and check data consistency -------------
@@ -806,7 +813,7 @@ contains
     !   dim2index: [integer, Input] the index for the second dimension
     !
     ! Note:
-    !   The variable in this h5 file must already be initilaized using the function h5save_C3Partial_Init
+    !   The variable in this h5 file must already be initilaized using the function h5save_CPartial_Init
     subroutine h5save_C3Partial_SingleDim2( filename, varname, matrix, dim2index)
         ! Inputs
         character(len=*), intent(in) :: filename, varname
@@ -842,7 +849,7 @@ contains
         call h5open_f(error)
         ! Open file with read and write access
         call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
-        ! Group is already created by h5save_C3Partial_Init
+        ! Group is already created by h5save_CPartial_Init
 
         ! ----------------------------- Real part -----------------------------
         dset_name = varname // "/" // varname // "_REAL"
@@ -981,7 +988,7 @@ contains
 
         ! --------------- Initialize variable for partial saving ---------------
         if (myid .eq. 0) then
-            call h5save_C3Partial_Init( filename, varname, full_data_dim)
+            call h5save_CPartial_Init( filename, varname, full_data_dim)
         endif
 
         ! ------------- Save data to h5 and check data consistency -------------
