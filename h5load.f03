@@ -467,10 +467,7 @@ contains
         INTEGER(HID_T) :: mspace_id      ! Memory space identifier
 
         INTEGER :: error ! Error flag
-        INTEGER :: dim1, dim2, dim3 ! matrix dimensions
 
-        INTEGER(HSIZE_T), DIMENSION(3) :: data_dims
-        INTEGER(HSIZE_T), DIMENSION(3) :: max_dims
         INTEGER(HSIZE_T), DIMENSION(3) :: partial_offset ! offset for the partial data, not offset = 0 is no offset
         INTEGER(HSIZE_T), DIMENSION(3) :: partial_dims ! dimension for the partial data
 
@@ -480,28 +477,12 @@ contains
         ! Open an existing file with read only
         CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
 
-        ! ----------------------- Get Matrix Dimensions -----------------------
-        ! dataset name for real part
-        dset_name = varname // "/" // varname // "_REAL"
-        ! Open an existing dataset.
-        CALL h5dopen_f(file_id, dset_name, dset_id, error)
-        !Get dataspace ID
-        CALL h5dget_space_f(dset_id, space_id, error)
-        !Get dataspace dims
-        CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
-        dim1 = data_dims(1)
-        dim2 = data_dims(2)
-        dim3 = data_dims(3)
-        CALL h5sclose_f(space_id, error)
-        ! close dataset
-        CALL h5dclose_f(dset_id, error)
-
-        ! partial data dimensions
-        partial_dims = read_dims
-        partial_offset = read_offset
+        ! ------------------- Partial Dimensions and Offset -------------------
+        ! Integer type conversion for the partial data dimensions
+        partial_dims = INT( read_dims, HSIZE_T)
+        partial_offset = INT( read_offset, HSIZE_T)
         ! Create a memory dataspace matching the dimensions of the partial subset
         call h5screate_simple_f(3, partial_dims, mspace_id, error)
-
 
         ! -------------------------- Allocate Matrix --------------------------
         ALLOCATE( matrix_r(read_dims(1),read_dims(2),read_dims(3)))
