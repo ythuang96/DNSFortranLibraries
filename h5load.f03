@@ -443,8 +443,10 @@ contains
     !             h5 filename with path
     !   varname:  [string, Input]
     !             "u" or "v" or "w" indicating which velocity component to read
+    !             or "o1" or "o2" or "o3" indicating which vorticity component to read
+    !             Note that the filtered DNS only has "v" and "o2"
     !   Buffer:   [3d double matrix, size (mxf,mzf,myf), Output]
-    !             velocity read from the h5 file
+    !             velocity/vorticity read from the h5 file
     subroutine h5loadVelocities( filename, varname, Buffer )
         character(len=*), intent(in) :: filename
         character(len=1), intent(in) :: varname
@@ -477,7 +479,7 @@ contains
 
         ! check the saving format of the file
         CALL h5lexists_f(file_id, "/velocityFieldsFourier", oldversion, error) ! old version file
-        CALL h5lexists_f(file_id, "/u"                    , newversion, error) ! new version file
+        CALL h5lexists_f(file_id, "/v"                    , newversion, error) ! new version file
 
         ! Open an existing dataset and get data
         ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
