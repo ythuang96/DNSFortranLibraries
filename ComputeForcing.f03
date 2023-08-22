@@ -8,25 +8,23 @@ module ComputeForcing
     public :: compute_forcing
 
 contains
-    ! subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, fxf,fyf,fzf, yplane)
-    ! This function computes the non-linear forcing fxf, fyf, fzf at a given y
-    ! plan then subtracts the mean (mean subtraction in controlled by the logical flag meansubtract1D_forcing )
+    ! subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, fxf,fyf,fzf)
+    ! This function computes the non-linear forcing fxf, fyf, fzf at a given y plane
+    !
+    ! NO MEAN SUBTRACTION is performed
     !
     ! Arguments:
     !   uf,vf,wf:          [double/single complex, Size (mxf,mzf), Input]
     !                      velocity fields at a single y plane
     !   dudyf,dvdyf,dwdyf: [double/single complex, Size (mxf,mzf), Input]
     !                      y derivatives of velocity fields at a single y plane
-    !   yplane :           [Integer, Input]
-    !                      index of this current y plane
     !   fxf,fyf,fzf:       [double/single complex, Size (mxf,mzf), Output]
     !                      not mean subtracted non-linear forcing at a single y plane
-    subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, yplane, fxf,fyf,fzf)
+    subroutine compute_forcing(uf,vf,wf,dudyf,dvdyf,dwdyf, fxf,fyf,fzf)
         use FFT_PRECISION_CONTROL, only: ifft2, fft2
         use wavenumbers, only: kx_derivative, kz_derivative
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf
         complex(kind=cp), intent(out), dimension(mxf,mzf) :: fxf,fyf,fzf
-        integer, intent(in) :: yplane
 
         ! velocities in physical space
         real(kind=cp), dimension(mgalx,mgalz) :: u, v, w
