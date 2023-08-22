@@ -449,7 +449,7 @@ contains
     !             velocity/vorticity read from the h5 file
     subroutine h5loadVelocities( filename, varname, Buffer )
         character(len=*), intent(in) :: filename
-        character(len=1), intent(in) :: varname
+        character(len=*), intent(in) :: varname
         complex(kind=cp), intent(out), dimension(mxf,mzf,myf) :: Buffer
         ! temp arrays for real and imaginary parts
         real(kind=sp), dimension(mxf,mzf,myf) :: rtemp, itemp
