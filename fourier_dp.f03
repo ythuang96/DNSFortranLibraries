@@ -12,12 +12,12 @@ module fourier_dp
     complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_ifftz
     complex(C_DOUBLE_COMPLEX), dimension(mgalx/2+1,mgalz) :: matrix_2d_comp
     real   (C_DOUBLE        ), dimension(mgalx    ,mgalz) :: matrix_2d_real
-    real   (C_DOUBLE        ), dimension(nt    ) :: vector_t
-    complex(C_DOUBLE_COMPLEX), dimension(nt/2+1) :: vector_om
+    real   (C_DOUBLE        ), dimension(ntseg    ) :: vector_t
+    complex(C_DOUBLE_COMPLEX), dimension(ntseg/2+1) :: vector_om
 
-    complex(C_DOUBLE_COMPLEX), dimension(nt) :: vector_tom_c2c
+    complex(C_DOUBLE_COMPLEX), dimension(ntseg) :: vector_tom_c2c
 
-    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fftt, fftt_c2c
+    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fft_tseg_r2c, fft_tseg_c2c
 
 
 contains
@@ -51,12 +51,12 @@ contains
         ! Generate plan for time FFT
         ! that is NOT consistent with the reolvent definition with a negative sign
         ! need to flip the omega in later code
-        plan_fftt = fftw_plan_dft_r2c_1d(nt, vector_t,vector_om, FFTW_PATIENT )
+        plan_fftt = fftw_plan_dft_r2c_1d( ntseg, vector_t,vector_om, FFTW_PATIENT )
 
         ! Generate plan for time FFT of a complex data
         ! use FFTW_BACKWARD because that will automatically result in an omega
         ! that is consistent with the reolvent definition with a negative sign
-        plan_fftt_c2c = fftw_plan_dft_1d( nt, vector_tom_c2c, vector_tom_c2c, FFTW_BACKWARD, FFTW_PATIENT)
+        plan_fftt_c2c = fftw_plan_dft_1d( ntseg, vector_tom_c2c, vector_tom_c2c, FFTW_BACKWARD, FFTW_PATIENT)
     end subroutine fft_plan
 
 
@@ -296,102 +296,104 @@ contains
     end subroutine ifftz
 
 
-    ! subroutine fftt( matrix_in, matrix_out )
-    ! Computes the fft in time for a 3d matrix
+    ! subroutine fft_tseg_r2c( vector_in, matrix_out, WindowFunction )
+    ! Computes the segmented and windowed fft in time for a temporal real vector
     !
     ! Arguments
-    !   matrix_in : [double real, size (:,:,nt), Input]
-    !               Time domain data as the input. The third dimension needs to be time
-    !   matrix_out: [double complex, size (:,:,nt/2+1), Output]
-    !               Frequency domain data. The third dimension is omega,
-    !               with the redundant (conjugate) data removed.
-    !               Note that omega is consistent with the resolvent definition with a negative sign
-    !   WindowFuncion: [string]
-    !                  "None" (no window function) or "Hamming" or "Hann"
-    !                  No correction factor is applied with the window function
-    subroutine fftt( matrix_in, matrix_out, WindowFunction )
-        real   (kind=dp), intent( in), dimension(:,:,:) :: matrix_in
-        complex(kind=dp), intent(out), dimension(:,:,:) :: matrix_out
-        character(len=*), intent(in) :: WindowFunction
+    !   vector_in    : [double real, size (nt), Input]
+    !                  Time domain data as the input
+    !   matrix_out   : [double complex, size (nom,nseg), Output]
+    !                  Frequency domain data. The first dimension is omega,
+    !                  with the redundant (conjugate) data included, organized as ... -om2, -om1, 0, om1, om2 ...
+    !                  Note that omega is consistent with the resolvent definition with a negative sign
+    !                  The second dimension is the segment number
+    !   WindowFuncion: [double real, size (ntseg), Input]
+    !                  A real vector with same length as the temporal segment, for the window function
+    subroutine fft_tseg_r2c( vector_in, matrix_out, WindowFunction )
+        real   (kind=dp), intent( in), dimension(nt)       :: vector_in
+        complex(kind=dp), intent(out), dimension(nom,nseg) :: matrix_out
+        real   (kind=dp), intent( in), dimension(ntseg)    :: WindowFunction
 
-        integer :: ii, jj, kk
-        integer :: size_matrix(3), size_dim1, size_dim2
+        integer :: ii, jj, ind_start
 
-        real   (kind=dp) :: pi
-        ! pi
-        pi = 4.0_dp * atan(1.0_dp)
+        ! loop over all the welch segments
+        DO ii = 1, nseg
 
-        ! get matrix dimensions
-        size_matrix = shape(matrix_in)
-        size_dim1   = size_matrix(1)
-        size_dim2   = size_matrix(2)
+            ! starting index of this time segment
+            ind_start = (ii-1)*( ntseg - noverlap )
+            ! The data of this time segment multiplied with the window function
+            vector_t = vector_in( ind_start+1:ind_start+ntseg ) * WindowFunction
 
-        ! loop over dimension 1 and 2 and transform dimension 3 (which is time)
-        DO jj = 1, size_dim2
-            DO ii = 1, size_dim1
-                DO kk = 1,nt
-                    if (WindowFunction .eq. "None" ) then ! No window function
-                        vector_t(kk) = matrix_in(ii,jj,kk)
-                    else if (WindowFunction .eq. "Hamming" ) then ! Hamming function
-                        vector_t(kk) = matrix_in(ii,jj,kk) &
-                        * (0.54_dp - 0.46_dp * cos(2.0_dp * pi * real(kk-1,dp)/real(nt-1,dp)))
-                    else if (WindowFunction .eq. "Hann" ) then ! Hann function
-                        vector_t(kk) = matrix_in(ii,jj,kk) &
-                        * (0.50_dp - 0.50_dp * cos(2.0_dp * pi * real(kk-1,dp)/real(nt-1,dp)))
-                    endif
-                ENDDO
+            ! perform transform
+            ! Note that omega is NOT consistent with the resolvent definition with a negative sign
+            ! as the fft plan uses forward fft
+            call fftw_execute_dft_r2c( plan_fftt, vector_t, vector_om)
 
-                ! perform transform
-                call fftw_execute_dft_r2c( plan_fftt, vector_t, vector_om)
+            ! Perform the truncation in omega and copy the transformed vector to the output data matrix
+            ! Since the vector_om has a missing negative sign
+            ! it is organized as: 0, -om1, -om2, ...
+            ! The output should be organized as: ... -om2, -om1, 0, om1, om2 ...
 
-                DO kk = 1,nt/2+1
-                    matrix_out(ii,jj,kk) = conjg( vector_om(kk) )/real(nt,dp)
-                    ! conjg to conform to the resolvent standart with negative sign for omega
-                    ! kk = 1 and nt/2+1 correspond to the DC component and the nyquist frequency
-                    ! which are real only
-                ENDDO
+            ! omega < 0
+            DO jj = 1, (nom-1)/2
+                matrix_out(jj, ii) = vector_om( (nom-1)/2+2-jj ) /real(ntseg,dp)
             ENDDO
+            ! omega = 0
+            matrix_out( (nom-1)/2+1, ii ) = vector_om(1) /real(ntseg,dp)
+            ! omega > 0
+            DO jj = 1,(nom-1)/2
+                matrix_out((nom-1)/2+1+jj,ii) = conjg( vector_om(jj+1) )/real(ntseg,dp)
+                ! conjg to conform to the resolvent standart with negative sign for omega
+            ENDDO
+
         ENDDO
-    end subroutine fftt
+
+    end subroutine fft_tseg_r2c
 
 
-    ! subroutine fftt_c2c( matrix )
-    ! Computes the fft in time for a 3d complex matrix
-    ! This is an inplace transform
+    ! subroutine fft_tseg_c2c( vector_in, matrix_out, WindowFuncion)
+    ! Computes the segmented and windowed fft in time for a temporal complex vector
     !
     ! Arguments
-    !   matrix: [double real, size (:,:,nt), Input/Output]
-    !           Time domain data as the input. The third dimension needs to be time
-    !           The matrix get updated to become frequency domain data.
-    !           The third dimension is omega.
-    !           Note that omega is consistent with the resolvent definition with a negative sign
-    subroutine fftt_c2c( matrix )
-        complex(kind=dp), intent(inout), dimension(:,:,:) :: matrix
+    !   vector_in    : [double complex, size (nt), Input]
+    !                  Time domain data as the input
+    !   matrix_out   : [double complex, size (nom,nseg), Output]
+    !                  Frequency domain data. The first dimension is omega,
+    !                  with the redundant (conjugate) data included, organized as ... -om2, -om1, 0, om1, om2
+    !                  Note that omega is consistent with the resolvent definition with a negative sign
+    !                  The second dimension is the segment number
+    !   WindowFuncion: [double real, size (ntseg), Input]
+    !                  A real vector with same length as the temporal segment, for the window function
+    subroutine fft_tseg_c2c( vector_in, matrix_out, WindowFunction)
+        complex(kind=dp), intent( in), dimension(nt)       :: vector_in
+        complex(kind=dp), intent(out), dimension(nom,nseg) :: matrix_out
+        real   (kind=dp), intent( in), dimension(ntseg)    :: WindowFunction
 
-        integer :: ii, jj
-        integer :: size_matrix(3), size_dim1, size_dim2
+        integer :: ii, ind_start
 
-        ! get matrix dimensions
-        size_matrix = shape(matrix)
-        size_dim1   = size_matrix(1)
-        size_dim2   = size_matrix(2)
+        ! loop over all the welch segments
+        DO ii = 1, nseg
 
-        ! loop over dimension 1 and 2 and transform dimension 3 (which is time)
-        DO jj = 1, size_dim2
-            DO ii = 1, size_dim1
-                ! copy the input data matrix to the FFT vector
-                vector_tom_c2c(:) = matrix(ii,jj,:)
+            ! starting index of this time segment
+            ind_start = (ii-1)*( ntseg - noverlap )
+            ! The data of this time segment multiplied with the window function
+            vector_tom_c2c = vector_in( ind_start+1:ind_start+ntseg ) * WindowFunction
 
-                ! perform transform
-                call fftw_execute_dft( plan_fftt_c2c, vector_tom_c2c, vector_tom_c2c )
-                ! This part already conforms to the resolvent standart with negative sign for omega
-                ! wiht the use of FFT_BACKWARD instead of FFT_FORWARD
+            ! perform transform
+            ! Note that omega is consistent with the resolvent definition with a negative sign
+            ! as the fft plan uses backwards fft
+            call fftw_execute_dft( plan_fftt_c2c, vector_tom_c2c, vector_tom_c2c )
 
-                ! copy the transformed vector to the output data matrix
-                matrix(ii,jj,:) = vector_tom_c2c(:) /real(nt,dp)
-            ENDDO
+            ! Perform the truncation in omega and copy the transformed vector to the output data matrix
+            ! omega < 0
+            matrix_out(     1:(nom-1)/2, ii) = vector_tom_c2c( ntseg-(nom-1)/2+1:ntseg ) /real(ntseg,dp)
+            ! omega >= 0
+            matrix_out( (nom-1)/2+1:nom, ii) = vector_tom_c2c(      1:(nom-1)/2+1      ) /real(ntseg,dp)
+            ! divide by ntseg as fftw does not perform normalization
+
         ENDDO
-    end subroutine fftt_c2c
+
+    end subroutine fft_tseg_c2c
 
 
 end module fourier_dp
