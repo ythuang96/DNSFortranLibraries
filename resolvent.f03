@@ -19,6 +19,7 @@ module resolvent
     public :: resolvent_A, resolvent_B
     public :: resolvent_LAP, resolvent_LOS, resolvent_LSQ
     public :: resolvent_H, resolvent_H00
+    public :: ve_X_H, H_X_fve
 
 contains
 ! *************************** Initialize This Moudle ***************************
@@ -286,5 +287,39 @@ contains
         Hev = (0.0_dp, 0.0_dp)
 
     end subroutine resolvent_H00
+
+
+! *********************** Multiplication with Resolvent ***********************
+    ! This function computes fve = ve X H (left multiplication of H by vector ve)
+    ! Arguments
+    !   ve            [complex, size 2*Ny, Input] velocity vorticity vector
+    !   Hvv, Hev, Hee [complex, Ny X Ny, Input] Resolvent sub blocks
+    ! Return
+    !   fve           [complex, size 2*Ny, Output] fve = ve X H (left multiplication of H by vector ve)
+    function ve_X_H( ve, Hvv, Hev, Hee ) result( fve )
+        complex(kind=dp), dimension(2*myf), intent(in) :: ve
+        complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
+        complex(kind=dp), dimension(2*myf) :: fve
+
+        ! Note: matmul does not need to transpose the vector
+        fve(    1:  myf) = matmul( ve(    1:  myf), Hvv ) + matmul( ve(myf+1:2*myf), Hev )
+        fve(myf+1:2*myf) = matmul( ve(myf+1:2*myf), Hee )
+    end function
+
+
+    ! This function computes ve = H X fve (right multiplication of H by vector fve)
+    ! Arguments
+    !   fve           [complex, size 2*Ny, Input] velocity vorticity forcing vector
+    !   Hvv, Hev, Hee [complex, Ny X Ny, Input] Resolvent sub blocks
+    ! Return
+    !   ve            [complex, size 2*Ny, Output] ve = H X fve (right multiplication of H by vector fve)
+    function H_X_fve( Hvv, Hev, Hee, fve ) result( ve )
+        complex(kind=dp), dimension(2*myf), intent(in) :: fve
+        complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
+        complex(kind=dp), dimension(2*myf) :: ve
+
+        ve(    1:  myf) = matmul( Hvv, fve(1:myf) ) ! v
+        ve(myf+1:2*myf) = matmul( Hev, fve(1:myf) ) + matmul( Hee, fve(myf+1:2*myf) ) ! o2
+    end function
 
 end module resolvent
