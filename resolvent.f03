@@ -260,10 +260,11 @@ contains
     ! Arguments
     !   omega    [real, Input] temporal frequency
     !   Hvv, Hee [complex Ny X Ny, Output] two diagonal blocks of resolvent matrix with appropriate boundary conditions
-    subroutine resolvent_H00( omega, Hvv, Hee)
+    !   Hev      [complex Ny X Ny, Output] zero matrix to keep the code consistent with resolvent_H
+    subroutine resolvent_H00( omega, Hvv, Hev, Hee)
         use matrixinv, only: MatrixInverse
         real(kind=dp), intent(in) :: omega
-        complex(kind=dp), intent(out), dimension(myf,myf) :: Hvv, Hee
+        complex(kind=dp), intent(out), dimension(myf,myf) :: Hvv, Hev, Hee
         complex(kind=dp), dimension(myf,myf) :: temp
 
         ! --------------------- Build Hvv before inversion ---------------------
@@ -281,6 +282,8 @@ contains
         call MatrixInverse( Hvv )
 
         Hee = Hvv
+
+        Hev = (0.0_dp, 0.0_dp)
 
     end subroutine resolvent_H00
 
