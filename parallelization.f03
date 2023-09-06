@@ -5,7 +5,8 @@ module parallelization
     private
 #   include "parameters"
 
-    public :: pointers, distribute_C3_slicedim2, distribute_C3_slicedim3
+    public :: pointers, distribute_C2_slicedim1
+    public :: distribute_C3_slicedim2, distribute_C3_slicedim3
     public :: change_dim2slice_to_dim3slice, change_dim3slice_to_dim2slice
     public :: changeR_dim3slice_to_dim2slice
     public :: allreduce_C2
@@ -52,6 +53,112 @@ contains
         end_vec(numerop) = begin_vec(numerop) + n1 - 1
 
     end subroutine pointers
+
+
+    ! subroutine distribute_C2_slicedim1( myid, sourceid, C2_full, C2_slice )
+    ! This function distribute a complex rank 2 matrix from sourceid to each processor
+    ! Each processor will get full data for dimension 2,
+    ! but only get a few grid points for dimension 1
+    ! Arguments:
+    !   myid:     [integer, Input]
+    !             processor ID
+    !   sourceid: [integer, Input]
+    !             the processor ID where the full data field is saved
+    !   C2_full:  [double/single complex, size (size_dim1,size_dim2), Input]
+    !             the full complex rank 2 matrix
+    !   C2_slice: [double/single complex, size (b1:e1,size_dim2), Output]
+    !             the complex rank 2 matrix for each processor, full data for dimension 2,
+    !             but only a few grid points for dimension 1
+    subroutine distribute_C2_slicedim1( myid, sourceid, C2_full, C2_slice )
+        ! Input/Output
+        integer, intent(in) :: myid, sourceid
+        complex(kind=cp), intent( in), dimension(:,:) :: C2_full
+        complex(kind=cp), intent(out), dimension(:,:) :: C2_slice
+
+        ! Matrix sizes
+        integer, dimension(2) :: size_matrix
+        integer :: size_dim1, size_dim2
+
+        ! Pointers for dimension 1 distribution
+        integer :: b1v(0:numerop-1), e1v(0:numerop-1)
+        integer :: b1, e1
+
+        ! temp b1 e1 pointers for the target processor
+        integer :: b1_target, e1_target
+
+        ! send/receive data size
+        integer :: nsend, nreceive
+        ! send/receive buffers
+        real(kind=cp), dimension(:,:,:), allocatable :: send_buffer, receive_buffer
+        ! Loop index
+        integer :: iproc
+
+        ! MPI
+        integer :: istat(MPI_STATUS_SIZE), ierr
+
+
+        ! --------------------- Get Full Matrix Dimensions ---------------------
+        size_matrix = shape(C2_full) ! Input matrix size
+        size_dim1   = size_matrix(1)  ! size of dimension 1
+        size_dim2   = size_matrix(2)  ! size of dimension 2
+
+
+        ! --------------------- Compute Dimension 1 Slices ---------------------
+        ! compute the vector pointers for dim 1
+        ! these vectors contain the begin and end indices for all processors
+        call pointers( b1v, e1v, size_dim1 ) ! dimension 1 begin and end indices
+        ! begin and end indices for the current processor
+        b1 = b1v(myid)
+        e1 = e1v(myid)
+
+
+        ! ----------------------- Send and Receive Data -----------------------
+        if ( myid .eq. sourceid ) then
+            ! if I am the source, then copy the data I need
+            C2_slice = C2_full(b1:e1,:)
+
+            ! sourceid send data to each processor except for itself
+            ! each processor gets (b1_target:e1_target,size_dim2)
+            ! (full dim 2 data, but only at a few dim 1 grid points)
+            do iproc = numerop-1, 0, -1
+                if ( iproc .ne. sourceid ) then ! no need to send data to itself
+                    ! b2, e2 for the target processor
+                    b1_target = b1v(iproc)
+                    e1_target = e1v(iproc)
+                    ! number of data sent (*2 for real and imaginary parts)
+                    nsend = (e1_target-b1_target+1) * size_dim2 * 2
+
+                    ! allocate a buffer to contain both the real and imaginary parts
+                    ALLOCATE(send_buffer(b1_target:e1_target, size_dim2, 2))
+                    send_buffer(:,:,1) =  real( C2_full(b1_target:e1_target,:), cp)
+                    send_buffer(:,:,2) = aimag( C2_full(b1_target:e1_target,:) )
+                    ! sourceid send data to iproc
+                    if ( cp .eq. dp ) then
+                        call MPI_SEND(send_buffer, nsend, MPI_DOUBLE_PRECISION, iproc, 0, MPI_COMM_WORLD, ierr )
+                    else if ( cp .eq. sp ) then
+                        call MPI_SEND(send_buffer, nsend, MPI_REAL            , iproc, 0, MPI_COMM_WORLD, ierr )
+                    endif
+                    ! deallocate buffer
+                    DEALLOCATE(send_buffer)
+                endif
+            enddo
+        else
+            ! All other processors receive data from sourceid
+            ! number of data received (*2 for real and imaginary parts)
+            nreceive = (e1-b1+1) * size_dim2 * 2
+            ! allocate a buffer to contain both the real and imaginary parts
+            ALLOCATE(receive_buffer(b1:e1, size_dim2, 2))
+            ! receive data from sourceid
+            if ( cp .eq. dp ) then
+                call MPI_RECV(receive_buffer, nreceive, MPI_DOUBLE_PRECISION, sourceid, 0, MPI_COMM_WORLD, istat, ierr )
+            else if ( cp .eq. sp ) then
+                call MPI_RECV(receive_buffer, nreceive, MPI_REAL            , sourceid, 0, MPI_COMM_WORLD, istat, ierr )
+            endif
+            ! build output from both real and imaginary parts
+            C2_slice = CMPLX( receive_buffer(:,:,1), receive_buffer(:,:,2), cp)
+            DEALLOCATE(receive_buffer)
+        endif
+    end subroutine distribute_C2_slicedim1
 
 
     ! subroutine distribute_C3_slicedim2( myid, sourceid, C3_full, C3_slice )
