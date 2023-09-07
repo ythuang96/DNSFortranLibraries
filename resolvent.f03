@@ -69,7 +69,7 @@ contains
     ! Arguments
     !   kx, kz [real, Input] kx and kz wavenumbers
     ! Return
-    !   A      [complex, 3Ny X 2Ny, output] the A matrix
+    !   A      [complex, 3Ny X 2Ny, output] the A matrix, with the special case of kx = kz = 0 taken care of
     function resolvent_A(kx, kz) result(A)
         real(kind=dp), intent(in) :: kx, kz
         complex(kind=dp), dimension(3*myf, 2*myf) :: A
@@ -97,6 +97,7 @@ contains
     !   kx, kz [real, Input] kx and kz wavenumbers
     ! Return
     !   B      [complex, 2Ny X 3Ny, output] the B matrix, with the proper boundary conditions applied
+    !                                       and the special case of kx = kz = 0 taken care of
     function resolvent_B(kx,kz) result(B)
         real(kind=dp), intent(in) :: kx, kz
         complex(kind=dp), dimension(2*myf, 3*myf) :: B
@@ -137,7 +138,7 @@ contains
     ! Arguments
     !   kx, kz [real, Input] kx and kz wavenumbers
     ! Return
-    !   LAP    [real, Ny X Ny, output] the Laplacian matrix
+    !   LAP    [real, Ny X Ny, output] the Laplacian matrix, not used for the speical case of kx = kz = 0
     function resolvent_LAP(kx,kz) result(LAP)
         real(kind=dp), intent(in) :: kx, kz
         real(kind=dp), dimension(myf, myf) :: LAP
@@ -157,7 +158,7 @@ contains
     !   kx  [real, Input] kx wavenumber
     !   LAP [real, Ny X Ny, Input] Laplacian matrix
     ! Return
-    !   LOS [complex, Ny X Ny, output] the Orr-Sommerfeld matrix
+    !   LOS [complex, Ny X Ny, output] the Orr-Sommerfeld matrix, not used for the speical case of kx = kz = 0
     function resolvent_LOS(kx,LAP) result(LOS)
         real(kind=dp), intent(in) :: kx
         real(kind=dp), intent(in), dimension(myf,myf) :: LAP
@@ -182,7 +183,7 @@ contains
     !   kx  [real, Input] kx wavenumber
     !   LAP [real, Ny X Ny, Input] Laplacian matrix
     ! Return
-    !   LSQ [complex, Ny X Ny, output] the Squire matrix
+    !   LSQ [complex, Ny X Ny, output] the Squire matrix, not used for the speical case of kx = kz = 0
     function resolvent_LSQ(kx,LAP) result(LSQ)
         real(kind=dp), intent(in) :: kx
         real(kind=dp), intent(in), dimension(myf,myf) :: LAP
@@ -266,7 +267,6 @@ contains
         use matrixinv, only: MatrixInverse
         real(kind=dp), intent(in) :: omega
         complex(kind=dp), intent(out), dimension(myf,myf) :: Hvv, Hev, Hee
-        complex(kind=dp), dimension(myf,myf) :: temp
 
         ! --------------------- Build Hvv before inversion ---------------------
         Hvv = (-complex_i*omega*IdentityMat) - D2/ReyNum

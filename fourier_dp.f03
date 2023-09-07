@@ -359,7 +359,7 @@ contains
     !                  Time domain data as the input
     !   matrix_out   : [double complex, size (nom,nseg), Output]
     !                  Frequency domain data. The first dimension is omega,
-    !                  with the redundant (conjugate) data included, organized as ... -om2, -om1, 0, om1, om2
+    !                  organized as ... -om2, -om1, 0, om1, om2
     !                  Note that omega is consistent with the resolvent definition with a negative sign
     !                  The second dimension is the segment number
     !   WindowFuncion: [double real, size (ntseg), Input]
@@ -383,6 +383,7 @@ contains
             ! Note that omega is consistent with the resolvent definition with a negative sign
             ! as the fft plan uses backwards fft
             call fftw_execute_dft( plan_fftt_c2c, vector_tom_c2c, vector_tom_c2c )
+            ! The resulting omega is organized as 0, om1, om2, ... -om2, -om1
 
             ! Perform the truncation in omega and copy the transformed vector to the output data matrix
             ! omega < 0
