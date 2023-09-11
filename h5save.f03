@@ -793,7 +793,7 @@ contains
     ! Arguments:
     !   filename : [string, Input] h5 filename with path
     !   varname  : [string, Input] variable name
-    !   matrix   : [double/single complex 2d matrix, Input] data to be saved
+    !   matrix   : [double complex 2d matrix, Input] data to be saved
     !   dim3index: [integer, Input] the index for the third dimension
     !
     ! Note:
@@ -913,7 +913,7 @@ contains
     ! Arguments:
     !   filename : [string, Input] h5 filename with path
     !   varname  : [string, Input] variable name
-    !   matrix   : [double/single complex 2d matrix, Input] data to be saved
+    !   matrix   : [single complex 2d matrix, Input] data to be saved
     !   dim3index: [integer, Input] the index for the third dimension
     !
     ! Note:
@@ -1034,7 +1034,7 @@ contains
     ! Arguments:
     !   filename : [string, Input] h5 filename with path
     !   varname  : [string, Input] variable name
-    !   matrix   : [double/single complex 3d matrix, size (dim1size, dim3size) Input] data to be saved
+    !   matrix   : [double complex 3d matrix, size (dim1size, dim3size) Input] data to be saved
     !   dim2index: [integer, Input] the index for the second dimension
     !
     ! Note:
@@ -1155,7 +1155,7 @@ contains
     ! Arguments:
     !   filename : [string, Input] h5 filename with path
     !   varname  : [string, Input] variable name
-    !   matrix   : [double/single complex 3d matrix, size (dim1size, dim3size) Input] data to be saved
+    !   matrix   : [single complex 3d matrix, size (dim1size, dim3size) Input] data to be saved
     !   dim2index: [integer, Input] the index for the second dimension
     !
     ! Note:
@@ -1275,7 +1275,7 @@ contains
     ! Arguments:
     !   filename : [string, Input] h5 filename with path
     !   varname  : [string, Input] variable name
-    !   matrix   : [double/single complex 3d matrix, Input] data to be saved
+    !   matrix   : [double complex 3d matrix, Input] data to be saved
     !   dim3index: [integer, Input] the index for the third dimension
     !
     ! Note:
@@ -1396,7 +1396,7 @@ contains
     ! Arguments:
     !   filename : [string, Input] h5 filename with path
     !   varname  : [string, Input] variable name
-    !   matrix   : [double/single complex 3d matrix, Input] data to be saved
+    !   matrix   : [single complex 3d matrix, Input] data to be saved
     !   dim3index: [integer, Input] the index for the third dimension
     !
     ! Note:
