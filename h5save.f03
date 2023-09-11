@@ -763,9 +763,9 @@ contains
         call h5screate_simple_f(matrix_rank, full_data_dim2, dspace_id, error)
 
         ! Create double/single precision dataset with path '/var/var_REAL' and write data
-        if ( cp .eq. dp ) then
+        if ( precision .eq. dp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
-        else if ( cp .eq. sp ) then
+        else if ( precision .eq. sp ) then
             call h5dcreate_f(file_id, dset_name, H5T_IEEE_F32LE, dspace_id, dset_id, error)
         endif
         ! Close dataset
