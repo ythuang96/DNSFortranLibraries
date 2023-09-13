@@ -1,5 +1,6 @@
 module resolvent
     use types, only: dp
+    use wallnormalgrid, only: d_dy_complexvector
     implicit none
     private
 #   include "parameters"
@@ -19,7 +20,7 @@ module resolvent
     public :: resolvent_A, resolvent_B
     public :: resolvent_LAP, resolvent_LOS, resolvent_LSQ
     public :: resolvent_H, resolvent_H00
-    public :: ve_X_H, H_X_fve
+    public :: vec_X_A1HB, vec_X_A2HB, vec_X_A3HB, AHB_X_vec
 
 contains
 ! *************************** Initialize This Moudle ***************************
@@ -321,5 +322,241 @@ contains
         ve(    1:  myf) = matmul( Hvv, fve(1:myf) ) ! v
         ve(myf+1:2*myf) = matmul( Hev, fve(1:myf) ) + matmul( Hee, fve(myf+1:2*myf) ) ! o2
     end function
+
+! ************************ Multiplication with A and B ************************
+    ! LEFT multiplication with the first Ny rows of A
+    ! the special case of kx = kz = 0 is taken care of
+    ! Arguments
+    !   vec    [complex, size(myf), input] left multiplication vector
+    !   kx, kz [real, input] kx and kz wavenumbers
+    ! Return
+    !   vecout [complex, size(2*myf)] result vector
+    function vec_X_A1(vec, kx, kz) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(myf) :: vec
+        complex(kind=dp), dimension(2*myf) :: vecout
+
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout(    1:  myf) = vec
+            vecout(myf+1:2*myf) = (0.0_dp, 0.0_dp)
+        else
+            vecout(    1:  myf) = + (complex_i*kx/k2)*matmul( vec, D1 ) ! note this is left multiplication
+            vecout(myf+1:2*myf) = - (complex_i*kz/k2)*vec
+        endif
+    end function vec_X_A1
+
+    ! LEFT multiplication with the second Ny rows of A
+    ! the special case of kx = kz = 0 is taken care of
+    ! Arguments
+    !   vec    [complex, size(myf), input] left multiplication vector
+    !   kx, kz [real, input] kx and kz wavenumbers
+    ! Return
+    !   vecout [complex, size(2*myf)] result vector
+    function vec_X_A2(vec, kx, kz) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(myf) :: vec
+        complex(kind=dp), dimension(2*myf) :: vecout
+
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout = (0.0_dp, 0.0_dp)
+        else
+            vecout(    1:  myf) = vec
+            vecout(myf+1:2*myf) = (0.0_dp, 0.0_dp)
+        endif
+    end function vec_X_A2
+
+    ! LEFT multiplication with the third Ny rows of A
+    ! the special case of kx = kz = 0 is taken care of
+    ! Arguments
+    !   vec    [complex, size(myf), input] left multiplication vector
+    !   kx, kz [real, input] kx and kz wavenumbers
+    ! Return
+    !   vecout [complex, size(2*myf)] result vector
+    function vec_X_A3(vec, kx, kz) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(myf) :: vec
+        complex(kind=dp), dimension(2*myf) :: vecout
+
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout(    1:  myf) = (0.0_dp, 0.0_dp)
+            vecout(myf+1:2*myf) = vec
+        else
+            vecout(    1:  myf) = + (complex_i*kz/k2)*matmul( vec, D1 ) ! note this is left multiplication
+            vecout(myf+1:2*myf) = + (complex_i*kx/k2)*vec
+        endif
+    end function vec_X_A3
+
+
+    ! RIGHT multiplication with the entire of A
+    ! the special case of kx = kz = 0 is taken care of
+    ! Arguments
+    !   vec    [complex, size(2*myf), input] right multiplication vector
+    !   kx, kz [real, input] kx and kz wavenumbers
+    ! Return
+    !   vecout [complex, size(3*myf)] result vector
+    function A_X_vec(kx, kz, vec) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(2*myf) :: vec
+        complex(kind=dp), dimension(3*myf) :: vecout
+        complex(kind=dp), dimension(myf) :: dvecdy
+
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout(      1:  myf) = vec(    1:  myf)
+            vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
+            vecout(2*myf+1:3*myf) = vec(myf+1:2*myf)
+        else
+            ! y derivative of vec
+            dvecdy = d_dy_complexvector( vec(1:myf) )
+            vecout(      1:  myf) = + (complex_i*kx/k2)*dvecdy - (complex_i*kz/k2)*vec(myf+1:2*myf)
+            vecout(  myf+1:2*myf) = vec(    1:  myf)
+            vecout(2*myf+1:3*myf) = + (complex_i*kz/k2)*dvecdy + (complex_i*kx/k2)*vec(myf+1:2*myf)
+        endif
+    end function A_X_vec
+
+
+    ! RIGHT multiplication with the entire of B
+    ! the special case of kx = kz = 0 is taken care of
+    ! the boundary conditions are also taken care of
+    ! Arguments
+    !   vec    [complex, size(3*myf), input] right multiplication vector
+    !   kx, kz [real, input] kx and kz wavenumbers
+    ! Return
+    !   vecout [complex, size(2*myf)] result vector
+    function B_X_vec(kx, kz, vec) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(3*myf) :: vec
+        complex(kind=dp), dimension(2*myf) :: vecout
+        complex(kind=dp), dimension(myf) :: temp
+
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout(      1:  myf) = vec(      1:  myf)
+            vecout(  myf+1:2*myf) = vec(2*myf+1:3*myf)
+            ! Apply Boundary conditions
+            vecout(    1) = (0.0_dp, 0.0_dp) !   u( 1 ) = 0
+            vecout(myf  ) = (0.0_dp, 0.0_dp) !   u(myf) = 0
+            vecout(myf+1) = (0.0_dp, 0.0_dp) !   w( 1 ) = 0
+            vecout(myf*2) = (0.0_dp, 0.0_dp) !   w(myf) = 0
+        else
+            ! y derivative of vec
+            temp                = - (complex_i*kx)*vec(      1:  myf) - (complex_i*kz)*vec(2*myf+1:3*myf)
+            vecout(    1:  myf) =   d_dy_complexvector(temp)          -            k2 *vec(  myf+1:2*myf)
+            vecout(myf+1:2*myf) = + (complex_i*kz)*vec(      1:  myf) - (complex_i*kx)*vec(2*myf+1:3*myf)
+            ! Apply Boundary conditions
+            vecout(    1) = (0.0_dp, 0.0_dp) !    v( 1 ) = 0
+            vecout(myf  ) = (0.0_dp, 0.0_dp) !    v(myf) = 0
+            vecout(    2) = (0.0_dp, 0.0_dp) ! dvdy( 1 ) = 0
+            vecout(myf-1) = (0.0_dp, 0.0_dp) ! dvdy(myf) = 0
+            vecout(myf+1) = (0.0_dp, 0.0_dp) !   o2( 1 ) = 0
+            vecout(myf*2) = (0.0_dp, 0.0_dp) !   o2(myf) = 0
+        endif
+    end function B_X_vec
+
+    ! LEFT multiplication with the entire of B
+    ! the special case of kx = kz = 0 is taken care of
+    ! the boundary conditions are also taken care of
+    ! Arguments
+    !   vec    [complex, size(2*myf), input] left multiplication vector
+    !   kx, kz [real, input] kx and kz wavenumbers
+    ! Return
+    !   vecout [complex, size(3*myf)] result vector
+    function vec_X_B(vec, kx, kz) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(2*myf) :: vec
+        complex(kind=dp), dimension(3*myf) :: vecout
+        complex(kind=dp), dimension(myf) :: temp
+        complex(kind=dp), dimension(2*myf) :: tempvec
+
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout(      1:  myf) = vec(    1:  myf)
+            vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
+            vecout(2*myf+1:3*myf) = vec(myf+1:2*myf)
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            ! but for this special case, B are made up of identity matrices, so it does not matter
+            vecout(      1) = (0.0_dp, 0.0_dp) !   u( 1 ) = 0
+            vecout(  myf  ) = (0.0_dp, 0.0_dp) !   u(myf) = 0
+            vecout(2*myf+1) = (0.0_dp, 0.0_dp) !   w( 1 ) = 0
+            vecout(3*myf  ) = (0.0_dp, 0.0_dp) !   w(myf) = 0
+        else
+            tempvec = vec
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            tempvec(    1) = (0.0_dp, 0.0_dp) !    v( 1 ) = 0
+            tempvec(myf  ) = (0.0_dp, 0.0_dp) !    v(myf) = 0
+            tempvec(    2) = (0.0_dp, 0.0_dp) ! dvdy( 1 ) = 0
+            tempvec(myf-1) = (0.0_dp, 0.0_dp) ! dvdy(myf) = 0
+            tempvec(myf+1) = (0.0_dp, 0.0_dp) !   o2( 1 ) = 0
+            tempvec(myf*2) = (0.0_dp, 0.0_dp) !   o2(myf) = 0
+
+            ! left multiplication with the derivative matrix
+            temp =  matmul( tempvec(      1:  myf), D1 ) ! note this is a left multiplication
+
+            vecout(      1:  myf) = - (complex_i*kx)*temp + (complex_i*kz)*tempvec(myf+1:2*myf)
+            vecout(  myf+1:2*myf) =                       -            k2 *tempvec(    1:  myf)
+            vecout(2*myf+1:3*myf) = - (complex_i*kz)*temp - (complex_i*kx)*tempvec(myf+1:2*myf)
+        endif
+    end function vec_X_B
+
+
+! ************* Combination of all Left and Right Multiplications *************
+    function vec_X_A1HB(vec, kx, kz, Hvv, Hev, Hee) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(myf) :: vec
+        complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
+        complex(kind=dp), dimension(3*myf) :: vecout
+
+        ! first multiply by A1, then by H, then by B, all matrices multiplying to the right
+        vecout = vec_X_B( ve_X_H( vec_X_A1(vec, kx, kz), Hvv, Hev, Hee ), kx, kz)
+    end function vec_X_A1HB
+
+    function vec_X_A2HB(vec, kx, kz, Hvv, Hev, Hee) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(myf) :: vec
+        complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
+        complex(kind=dp), dimension(3*myf) :: vecout
+
+        ! first multiply by A2, then by H, then by B, all matrices multiplying to the right
+        vecout = vec_X_B( ve_X_H( vec_X_A2(vec, kx, kz), Hvv, Hev, Hee ), kx, kz)
+    end function vec_X_A2HB
+
+    function vec_X_A3HB(vec, kx, kz, Hvv, Hev, Hee) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(myf) :: vec
+        complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
+        complex(kind=dp), dimension(3*myf) :: vecout
+
+        ! first multiply by A3, then by H, then by B, all matrices multiplying to the right
+        vecout = vec_X_B( ve_X_H( vec_X_A3(vec, kx, kz), Hvv, Hev, Hee ), kx, kz)
+    end function vec_X_A3HB
+
+    function AHB_X_vec(kx, kz, Hvv, Hev, Hee, vec) result(vecout)
+        real(kind=dp), intent(in) :: kx, kz
+        complex(kind=dp), intent(in), dimension(3*myf) :: vec
+        complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
+        complex(kind=dp), dimension(3*myf) :: vecout
+
+        ! first multiply by B, then by H, then by A, all matrices multiplying to the left
+        vecout = A_X_vec( kx, kz, H_X_fve( Hvv, Hev, Hee, B_X_vec( kx, kz, vec )))
+
+    end function AHB_X_vec
+
 
 end module resolvent
