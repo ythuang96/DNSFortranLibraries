@@ -16,6 +16,9 @@ module resolvent
     ! First and second derivative matrices
     real(kind=dp), dimension(myf,myf) :: D1, D2
 
+    ! Temporary vectors
+    complex(kind=dp),dimension(myf) :: temp1, temp2, temp3, temp4
+
     public :: initialize_resolvent_module
     public :: resolvent_A, resolvent_B
     public :: resolvent_LAP, resolvent_LOS, resolvent_LSQ
@@ -523,8 +526,43 @@ contains
         complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
         complex(kind=dp), dimension(3*myf) :: vecout
 
-        ! first multiply by A1, then by H, then by B, all matrices multiplying to the right
-        vecout = vec_X_B( ve_X_H( vec_X_A1(vec, kx, kz), Hvv, Hev, Hee ), kx, kz)
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            ! vec_X_A1HB
+            vecout(      1:  myf) = matmul( vec, Hvv )
+            vecout(  myf+1:3*myf) = (0.0_dp, 0.0_dp)
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            ! but for this special case, B are made up of identity matrices, so it does not matter
+            vecout(      1) = (0.0_dp, 0.0_dp) !   u( 1 ) = 0
+            vecout(  myf  ) = (0.0_dp, 0.0_dp) !   u(myf) = 0
+        else
+            ! vec_X_A1
+            temp1 = + (complex_i*kx/k2)*matmul( vec, D1 ) ! note this is left multiplication
+            temp2 = - (complex_i*kz/k2)*vec
+            ! ve_X_H
+            temp3 = matmul( temp1, Hvv ) + matmul( temp2, Hev )
+            temp4 = matmul( temp2, Hee )
+
+            ! vec_X_B
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            temp3(    1) = (0.0_dp, 0.0_dp) !    v( 1 ) = 0
+            temp3(myf  ) = (0.0_dp, 0.0_dp) !    v(myf) = 0
+            temp3(    2) = (0.0_dp, 0.0_dp) ! dvdy( 1 ) = 0
+            temp3(myf-1) = (0.0_dp, 0.0_dp) ! dvdy(myf) = 0
+            temp4(    1) = (0.0_dp, 0.0_dp) !   o2( 1 ) = 0
+            temp4(myf  ) = (0.0_dp, 0.0_dp) !   o2(myf) = 0
+
+            ! left multiplication with the derivative matrix
+            temp1 =  matmul( temp3, D1 ) ! note this is a left multiplication
+
+            vecout(      1:  myf) = - (complex_i*kx)*temp1 + (complex_i*kz)*temp4
+            vecout(  myf+1:2*myf) =                        -            k2 *temp3
+            vecout(2*myf+1:3*myf) = - (complex_i*kz)*temp1 - (complex_i*kx)*temp4
+        endif
     end function vec_X_A1HB
 
     function vec_X_A2HB(vec, kx, kz, Hvv, Hev, Hee) result(vecout)
@@ -533,8 +571,29 @@ contains
         complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
         complex(kind=dp), dimension(3*myf) :: vecout
 
-        ! first multiply by A2, then by H, then by B, all matrices multiplying to the right
-        vecout = vec_X_B( ve_X_H( vec_X_A2(vec, kx, kz), Hvv, Hev, Hee ), kx, kz)
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout = (0.0_dp, 0.0_dp)
+        else
+            ! ve_X_H( vec_X_A2( vec ))
+            temp1 = matmul( vec, Hvv )
+
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            temp1(    1) = (0.0_dp, 0.0_dp) !    v( 1 ) = 0
+            temp1(myf  ) = (0.0_dp, 0.0_dp) !    v(myf) = 0
+            temp1(    2) = (0.0_dp, 0.0_dp) ! dvdy( 1 ) = 0
+            temp1(myf-1) = (0.0_dp, 0.0_dp) ! dvdy(myf) = 0
+
+            ! left multiplication with the derivative matrix
+            temp2 =  matmul( temp1, D1 ) ! note this is a left multiplication
+
+            vecout(      1:  myf) = - (complex_i*kx)*temp2
+            vecout(  myf+1:2*myf) = -            k2 *temp1
+            vecout(2*myf+1:3*myf) = - (complex_i*kz)*temp2
+        endif
     end function vec_X_A2HB
 
     function vec_X_A3HB(vec, kx, kz, Hvv, Hev, Hee) result(vecout)
@@ -543,8 +602,44 @@ contains
         complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
         complex(kind=dp), dimension(3*myf) :: vecout
 
-        ! first multiply by A3, then by H, then by B, all matrices multiplying to the right
-        vecout = vec_X_B( ve_X_H( vec_X_A3(vec, kx, kz), Hvv, Hev, Hee ), kx, kz)
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
+
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            vecout(      1:  myf) = matmul( vec, Hev )
+            vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
+            vecout(2*myf+1:3*myf) = matmul( vec, Hee )
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            ! but for this special case, B are made up of identity matrices, so it does not matter
+            vecout(      1) = (0.0_dp, 0.0_dp) !   u( 1 ) = 0
+            vecout(  myf  ) = (0.0_dp, 0.0_dp) !   u(myf) = 0
+            vecout(2*myf+1) = (0.0_dp, 0.0_dp) !   w( 1 ) = 0
+            vecout(3*myf  ) = (0.0_dp, 0.0_dp) !   w(myf) = 0
+        else
+            ! vec_X_A3
+            temp1 = + (complex_i*kz/k2)*matmul( vec, D1 ) ! note this is left multiplication
+            temp2 = + (complex_i*kx/k2)*vec
+            ! vec_X_H
+            temp3 = matmul( temp1, Hvv ) + matmul( temp2, Hev )
+            temp4 = matmul( temp2, Hee )
+
+            ! Apply Boundary conditions
+            ! Since this is left multiplication, the boundary conditions should be applied to the input vector
+            temp3(    1) = (0.0_dp, 0.0_dp) !    v( 1 ) = 0
+            temp3(myf  ) = (0.0_dp, 0.0_dp) !    v(myf) = 0
+            temp3(    2) = (0.0_dp, 0.0_dp) ! dvdy( 1 ) = 0
+            temp3(myf-1) = (0.0_dp, 0.0_dp) ! dvdy(myf) = 0
+            temp4(    1) = (0.0_dp, 0.0_dp) !   o2( 1 ) = 0
+            temp4(myf  ) = (0.0_dp, 0.0_dp) !   o2(myf) = 0
+
+            ! left multiplication with the derivative matrix
+            temp1 =  matmul( temp3, D1 ) ! note this is a left multiplication
+
+            vecout(      1:  myf) = - (complex_i*kx)*temp1 + (complex_i*kz)*temp4
+            vecout(  myf+1:2*myf) =                        -            k2 *temp3
+            vecout(2*myf+1:3*myf) = - (complex_i*kz)*temp1 - (complex_i*kx)*temp4
+        endif
     end function vec_X_A3HB
 
     function AHB_X_vec(kx, kz, Hvv, Hev, Hee, vec) result(vecout)
@@ -553,9 +648,45 @@ contains
         complex(kind=dp), dimension(myf, myf), intent(in) :: Hvv, Hev, Hee
         complex(kind=dp), dimension(3*myf) :: vecout
 
-        ! first multiply by B, then by H, then by A, all matrices multiplying to the left
-        vecout = A_X_vec( kx, kz, H_X_fve( Hvv, Hev, Hee, B_X_vec( kx, kz, vec )))
+        real(kind=dp) :: k2
+        k2 = kx**2 + kz**2
 
+        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+            temp1 = vec(      1:  myf)
+            temp2 = vec(2*myf+1:3*myf)
+            ! Apply Boundary conditions
+            temp1(    1) = (0.0_dp, 0.0_dp) !   u( 1 ) = 0
+            temp1(myf  ) = (0.0_dp, 0.0_dp) !   u(myf) = 0
+            temp2(    1) = (0.0_dp, 0.0_dp) !   w( 1 ) = 0
+            temp2(myf  ) = (0.0_dp, 0.0_dp) !   w(myf) = 0
+
+            vecout(      1:  myf) = matmul( Hvv, temp1 ) ! v
+            vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
+            vecout(2*myf+1:3*myf) = matmul( Hev, temp1 ) + matmul( Hee, temp2 ) ! o2
+        else
+            ! B_X_vec
+            temp3 = - (complex_i*kx)*vec(      1:  myf) - (complex_i*kz)*vec(2*myf+1:3*myf)
+            temp1 =   d_dy_complexvector(temp3)         -            k2 *vec(  myf+1:2*myf)
+            temp2 = + (complex_i*kz)*vec(      1:  myf) - (complex_i*kx)*vec(2*myf+1:3*myf)
+            ! Apply Boundary conditions
+            temp1(    1) = (0.0_dp, 0.0_dp) !    v( 1 ) = 0
+            temp1(myf  ) = (0.0_dp, 0.0_dp) !    v(myf) = 0
+            temp1(    2) = (0.0_dp, 0.0_dp) ! dvdy( 1 ) = 0
+            temp1(myf-1) = (0.0_dp, 0.0_dp) ! dvdy(myf) = 0
+            temp2(    1) = (0.0_dp, 0.0_dp) !   o2( 1 ) = 0
+            temp2(myf  ) = (0.0_dp, 0.0_dp) !   o2(myf) = 0
+
+            ! H_X_vec
+            temp3 = matmul( Hvv, temp1 ) ! v
+            temp4 = matmul( Hev, temp1 ) + matmul( Hee, temp2 ) ! o2
+
+            ! A_X_vec
+            ! y derivative of vec
+            temp1 = d_dy_complexvector( temp3 )
+            vecout(      1:  myf) = + (complex_i*kx/k2)*temp1 - (complex_i*kz/k2)*temp4
+            vecout(  myf+1:2*myf) = temp3
+            vecout(2*myf+1:3*myf) = + (complex_i*kz/k2)*temp1 + (complex_i*kx/k2)*temp4
+        endif
     end function AHB_X_vec
 
 
