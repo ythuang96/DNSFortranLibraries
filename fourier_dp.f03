@@ -33,7 +33,7 @@ contains
     ! plan_fftt : fft in time               real vector size nt -> complex vector size nt/2+1 (nt = nom)
     subroutine fft_plan
         ! Generate plans for ifft in x and z seperately
-        ! These two are inplace transforms
+        ! These two are inplace transforms (the two pointers can be equal, indicating an in-place transform, ignore compiler warning )
         plan_ifftx = fftw_plan_dft_1d(mgalx, vector_ifftx,vector_ifftx, FFTW_BACKWARD, FFTW_PATIENT )
         plan_ifftz = fftw_plan_dft_1d(mgalz, vector_ifftz,vector_ifftz, FFTW_BACKWARD, FFTW_PATIENT )
 

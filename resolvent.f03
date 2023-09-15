@@ -84,7 +84,7 @@ contains
         ! Initialize all elements to 0
         A = ( 0.0_dp, 0.0_dp )
 
-        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+        if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
             A(      1:  myf,     1:  myf) = IdentityMat
             A(2*myf+1:3*myf, myf+1:2*myf) = IdentityMat
         else
@@ -112,7 +112,7 @@ contains
         ! Initialize all elements to 0
         B = ( 0.0_dp, 0.0_dp )
 
-        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+        if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
             B(    1:  myf,       1:  myf) = IdentityMat
             B(myf+1:2*myf, 2*myf+1:3*myf) = IdentityMat
 
@@ -344,7 +344,7 @@ contains
     !     real(kind=dp) :: k2
     !     k2 = kx**2 + kz**2
 
-    !     if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+    !     if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
     !         vecout(    1:  myf) = vec
     !         vecout(myf+1:2*myf) = (0.0_dp, 0.0_dp)
     !     else
@@ -368,7 +368,7 @@ contains
     !     real(kind=dp) :: k2
     !     k2 = kx**2 + kz**2
 
-    !     if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+    !     if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
     !         vecout = (0.0_dp, 0.0_dp)
     !     else
     !         vecout(    1:  myf) = vec
@@ -391,7 +391,7 @@ contains
     !     real(kind=dp) :: k2
     !     k2 = kx**2 + kz**2
 
-    !     if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+    !     if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
     !         vecout(    1:  myf) = (0.0_dp, 0.0_dp)
     !         vecout(myf+1:2*myf) = vec
     !     else
@@ -417,7 +417,7 @@ contains
     !     real(kind=dp) :: k2
     !     k2 = kx**2 + kz**2
 
-    !     if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+    !     if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
     !         vecout(      1:  myf) = vec(    1:  myf)
     !         vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
     !         vecout(2*myf+1:3*myf) = vec(myf+1:2*myf)
@@ -448,7 +448,7 @@ contains
     !     real(kind=dp) :: k2
     !     k2 = kx**2 + kz**2
 
-    !     if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+    !     if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
     !         vecout(      1:  myf) = vec(      1:  myf)
     !         vecout(  myf+1:2*myf) = vec(2*myf+1:3*myf)
     !         ! Apply Boundary conditions
@@ -489,7 +489,7 @@ contains
     !     real(kind=dp) :: k2
     !     k2 = kx**2 + kz**2
 
-    !     if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+    !     if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
     !         vecout(      1:  myf) = vec(    1:  myf)
     !         vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
     !         vecout(2*myf+1:3*myf) = vec(myf+1:2*myf)
@@ -531,7 +531,7 @@ contains
         real(kind=dp) :: k2
         k2 = kx**2 + kz**2
 
-        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+        if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
             ! vec_X_A1HB
             vecout(      1:  myf) = matmul( vec, Hvv )
             vecout(  myf+1:3*myf) = (0.0_dp, 0.0_dp)
@@ -576,7 +576,7 @@ contains
         real(kind=dp) :: k2
         k2 = kx**2 + kz**2
 
-        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+        if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
             vecout = (0.0_dp, 0.0_dp)
         else
             ! ve_X_H( vec_X_A2( vec ))
@@ -607,7 +607,7 @@ contains
         real(kind=dp) :: k2
         k2 = kx**2 + kz**2
 
-        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+        if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
             vecout(      1:  myf) = matmul( vec, Hev )
             vecout(  myf+1:2*myf) = (0.0_dp, 0.0_dp)
             vecout(2*myf+1:3*myf) = matmul( vec, Hee )
@@ -653,7 +653,7 @@ contains
         real(kind=dp) :: k2
         k2 = kx**2 + kz**2
 
-        if ((kx == 0) .and. (kz == 0)) then ! special case for kx = kz = 0
+        if ((abs(kx) < 1.0D-8) .and. (abs(kz) < 1.0D-8)) then ! special case for kx = kz = 0
             temp1 = vec(      1:  myf)
             temp2 = vec(2*myf+1:3*myf)
             ! Apply Boundary conditions
