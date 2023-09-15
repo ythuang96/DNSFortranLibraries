@@ -6,7 +6,7 @@ module h5save
     private
 #   include "parameters"
 
-    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_R1, h5save_C2, h5save_R2, h5save_C3_sp
+    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_R1, h5save_C2, h5save_R2, h5save_C3_sp, h5save_C3_dp
     public :: h5save_RPartial_Init, h5save_R2Partial_SingleDim2, h5save_R3Partial_SingleDim3, h5save_R3Partial_SingleDim2
     public :: h5save_CPartial_Init
     public :: h5save_C3Partial_SingleDim3_dp, h5save_C3Partial_SingleDim2_dp, h5save_C4Partial_SingleDim3_dp
@@ -298,6 +298,89 @@ contains
         ! Deallocate temp buffer
         DEALLOCATE(temp)
     end subroutine h5save_C2
+
+
+    ! subroutine h5save_C3_dp( filename, varname, matrix )
+    ! save a complex rank 3 matrix to h5 file
+    ! Arguments:
+    !   filename: [string, Input] h5 filename with path
+    !   varname : [string, Input] variable name (complex 3d matrix)
+    !   matrix  : [double complex 3d matrix, Input] data to be saved
+    subroutine h5save_C3_dp( filename, varname, matrix )
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=dp), intent(in), dimension(:,:,:) :: matrix
+
+        real(kind=dp), dimension(:,:,:), allocatable :: temp
+
+        character(len=100) :: dset_name ! dataset name
+        integer(HSIZE_T), dimension(3) :: data_dim ! data dimensions
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id  ! file id
+        INTEGER(HID_T) :: group_id ! group id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: dset_id ! dataset id
+
+        logical :: file_exists
+
+
+        ! get matrix dimensions
+        data_dim = shape(matrix)
+        ! Allocate temp buffer
+        ALLOCATE(temp(data_dim(1), data_dim(2), data_dim(3)))
+
+        ! ------------------------ Setup File and Group ------------------------
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Check if file exist
+        INQUIRE(FILE=filename, EXIST=file_exists)
+        if ( file_exists ) then
+            ! If file already exist, then open file with read and write access
+            call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        else
+            ! Create new file
+            CALL h5fcreate_f(filename, H5F_ACC_EXCL_F, file_id, error)
+        endif
+
+        ! Create a group in the HDF5 file with the variable name
+        CALL h5gcreate_f(file_id, varname, group_id, error)
+        ! Close the group
+        CALL h5gclose_f(group_id, error)
+
+        ! ----------------------------- Real part -----------------------------
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Create dataspace with rank 3 and size data_dim
+        CALL h5screate_simple_f(3, data_dim, dspace_id, error)
+        ! Create double/single precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, dp)
+        CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+        CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, data_dim, error)
+        ! Close dataset
+        CALL h5dclose_f(dset_id, error)
+        ! Close dataspace
+        CALL h5sclose_f(dspace_id, error)
+
+        ! --------------------------- Imaginary part ---------------------------
+        dset_name = varname // "/" // varname // "_IMAG"
+        ! Create dataspace with rank 3 and size data_dim
+        CALL h5screate_simple_f(3, data_dim, dspace_id, error)
+        ! Create double/single precision dataset with path '/var/var_IMAG' and write data
+        temp = aimag(matrix)
+        CALL h5dcreate_f(file_id, dset_name, H5T_IEEE_F64LE, dspace_id, dset_id, error)
+        CALL h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, data_dim, error)
+        ! Close dataset
+        CALL h5dclose_f(dset_id, error)
+        ! Close dataspace
+        CALL h5sclose_f(dspace_id, error)
+
+        ! ------------------------------ Clean up ------------------------------
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
+    end subroutine h5save_C3_dp
 
 
     ! subroutine h5save_C3_sp( filename, varname, matrix )
