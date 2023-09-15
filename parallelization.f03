@@ -504,7 +504,7 @@ contains
         integer, dimension(3) :: size_matrix
         integer :: size_dim1
         integer :: size_dim2slice, size_dim2full
-        integer :: size_dim3slice, size_dim3full
+        integer ::                 size_dim3full
 
         ! Pointers
         integer :: b2v(0:numerop-1), e2v(0:numerop-1)
@@ -637,7 +637,7 @@ contains
         integer, dimension(3) :: size_matrix
         integer :: size_dim1
         integer :: size_dim2slice, size_dim2full
-        integer :: size_dim3slice, size_dim3full
+        integer ::                 size_dim3full
 
         ! Pointers
         integer :: b2v(0:numerop-1), e2v(0:numerop-1)
@@ -762,7 +762,7 @@ contains
         ! Grid sizes
         integer, dimension(3) :: size_matrix
         integer :: size_dim1
-        integer :: size_dim2slice, size_dim2full
+        integer ::                 size_dim2full
         integer :: size_dim3slice, size_dim3full
 
         ! Pointers
@@ -898,7 +898,7 @@ contains
         ! Grid sizes
         integer, dimension(3) :: size_matrix
         integer :: size_dim1
-        integer :: size_dim2slice, size_dim2full
+        integer ::                 size_dim2full
         integer :: size_dim3slice, size_dim3full
 
         ! Pointers

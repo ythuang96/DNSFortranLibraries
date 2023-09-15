@@ -88,7 +88,7 @@ contains
         INTEGER(HID_T) :: space_id       ! Dataspace identifier
 
         INTEGER :: error ! Error flag
-        INTEGER :: dim1, dim2 ! matrix dimensions
+        INTEGER(8) :: dim1, dim2 ! matrix dimensions
 
         INTEGER(HSIZE_T), DIMENSION(2) :: data_dims
         INTEGER(HSIZE_T), DIMENSION(2) :: max_dims
@@ -183,7 +183,7 @@ contains
         INTEGER(HID_T) :: space_id       ! Dataspace identifier
 
         INTEGER :: error ! Error flag
-        INTEGER :: dim1, dim2 ! matrix dimensions
+        INTEGER(8) :: dim1, dim2 ! matrix dimensions
 
         INTEGER(HSIZE_T), DIMENSION(2) :: data_dims
         INTEGER(HSIZE_T), DIMENSION(2) :: max_dims
@@ -259,7 +259,7 @@ contains
         INTEGER(HID_T) :: space_id       ! Dataspace identifier
 
         INTEGER :: error ! Error flag
-        INTEGER :: dim1, dim2 ! matrix dimensions
+        INTEGER(8) :: dim1, dim2 ! matrix dimensions
 
         INTEGER(HSIZE_T), DIMENSION(2) :: data_dims
         INTEGER(HSIZE_T), DIMENSION(2) :: max_dims
@@ -359,7 +359,7 @@ contains
         INTEGER(HID_T) :: space_id       ! Dataspace identifier
 
         INTEGER :: error ! Error flag
-        INTEGER :: dim1, dim2, dim3 ! matrix dimensions
+        INTEGER(8) :: dim1, dim2, dim3 ! matrix dimensions
 
         INTEGER(HSIZE_T), DIMENSION(3) :: data_dims
         INTEGER(HSIZE_T), DIMENSION(3) :: max_dims

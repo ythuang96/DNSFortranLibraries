@@ -605,7 +605,6 @@ contains
 
         integer :: error ! error flag
         INTEGER(HID_T) :: file_id   ! file id
-        INTEGER(HID_T) :: group_id  ! group id
         INTEGER(HID_T) :: dspace_id ! dataspace id
         INTEGER(HID_T) :: dset_id   ! dataset id
 

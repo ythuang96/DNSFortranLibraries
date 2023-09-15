@@ -32,7 +32,7 @@ contains
         save   /ygrid/
 
         real(kind=cp), dimension(my) :: b
-        integer :: i, j
+        integer :: j
 
 
         ! Compute y grid
