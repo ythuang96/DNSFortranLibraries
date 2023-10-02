@@ -6,11 +6,14 @@ module h5save
     private
 #   include "parameters"
 
-    public :: check_filename, h5save_logical, h5save_string, h5save_R, h5save_R1, h5save_C2, h5save_R2, h5save_C3_sp, h5save_C3_dp
+    public :: check_filename, h5save_logical, h5save_string
+    public :: h5save_R, h5save_R1, h5save_C2, h5save_R2
+    public :: h5save_C3_sp, h5save_C3_dp
     public :: h5save_RPartial_Init, h5save_R2Partial_SingleDim2, h5save_R3Partial_SingleDim3, h5save_R3Partial_SingleDim2
     public :: h5save_CPartial_Init
     public :: h5save_C3Partial_SingleDim3_dp, h5save_C3Partial_SingleDim2_dp, h5save_C4Partial_SingleDim3_dp
     public :: h5save_C3Partial_SingleDim3_sp, h5save_C3Partial_SingleDim2_sp, h5save_C4Partial_SingleDim3_sp
+    public :: h5save_C3Partial_Dim3Range_dp, h5save_C4Partial_Dim4Range_sp
 
     ! The following standard for complex variables are used:
     ! if varibale 'var' is complex, save as '/var/var_REAL' and '/var/var_IMAG'
@@ -1767,6 +1770,247 @@ contains
         ! Deallocate temp buffer
         DEALLOCATE(temp)
     end subroutine h5save_C4Partial_SingleDim3_sp
+
+
+    ! subroutine h5save_C3Partial_Dim3Range_dp( filename, varname, matrix, dim3indexstart )
+    ! save a complex rank 3 matrix to h5 file as a range of plane in the complex rank 3 matrix
+    !
+    ! Arguments:
+    !   filename : [string, Input] h5 filename with path
+    !   varname  : [string, Input] variable name
+    !   matrix   : [double complex 3d matrix, Input] data to be saved
+    !   dim3index: [integer, Input] the start index for the third dimension
+    !
+    ! Note:
+    !   The variable in this h5 file must already be initilaized using the function h5save_CPartial_Init
+    subroutine h5save_C3Partial_Dim3Range_dp( filename, varname, matrix, dim3indexstart )
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=dp), intent(in), dimension(:,:,:) :: matrix
+        integer, intent(in) :: dim3indexstart
+
+        real(kind=dp), dimension(:,:,:), allocatable :: temp
+
+        character(len=100) :: dset_name ! dataset name
+
+        ! data dimensions for full data and slice data
+        integer(HSIZE_T), dimension(3) :: matrix_dim
+        integer(HSIZE_T), dimension(3) :: slice_data_dim
+        integer(HSIZE_T), dimension(3) :: slabOffset ! hyperslab offset
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id   ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: mspace_id ! memeory space id
+        INTEGER(HID_T) :: dset_id   ! dataset id
+
+
+        ! get matrix dimension
+        matrix_dim = shape(matrix)
+        slice_data_dim(1) = matrix_dim(1)
+        slice_data_dim(2) = matrix_dim(2)
+        slice_data_dim(3) = matrix_dim(3)
+        ! Allocate temp buffer
+        allocate(temp( slice_data_dim(1), slice_data_dim(2), slice_data_dim(3)))
+
+        ! ------------------------ Setup File and Group ------------------------
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Open file with read and write access
+        call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        ! Group is already created by h5save_CPartial_Init
+
+        ! ----------------------------- Real part -----------------------------
+        dset_name = varname // "/" // varname // "_REAL"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim3indexstart (offset dim3indexstart-1)
+        slabOffset = (/ 0, 0, dim3indexstart - 1 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 3 and size slice_data_dim
+        call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create double precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, dp)
+        call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
+                mem_space_id=mspace_id, file_space_id=dspace_id)
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! --------------------------- Imaginary part ---------------------------
+        dset_name = varname // "/" // varname // "_IMAG"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim3indexstart (offset dim3indexstart-1)
+        slabOffset = (/ 0, 0, dim3indexstart - 1 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 3 and size slice_data_dim
+        call h5screate_simple_f(3, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create double precision dataset with path '/var/var_IMAG' and write data
+        temp = aimag(matrix)
+        call h5dwrite_f(dset_id, H5T_IEEE_F64LE, temp, slice_data_dim, error, &
+                mem_space_id=mspace_id, file_space_id=dspace_id)
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! ------------------------------ Clean up ------------------------------
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
+    end subroutine h5save_C3Partial_Dim3Range_dp
+
+
+    ! subroutine h5save_C4Partial_Dim4Range_sp( filename, varname, matrix, dim4indexstart )
+    ! save a complex rank 4 matrix to h5 file as a range of plane in the complex rank 4 matrix
+    !
+    ! Arguments:
+    !   filename      : [string, Input] h5 filename with path
+    !   varname       : [string, Input] variable name
+    !   matrix        : [single complex 4d matrix, Input] data to be saved
+    !   dim4indexstart: [integer, Input] the start index for the fourth dimension
+    !
+    ! Note:
+    !   The variable in this h5 file must already be initilaized using the function h5save_CPartial_Init
+    subroutine h5save_C4Partial_Dim4Range_sp( filename, varname, matrix, dim4indexstart )
+        ! Inputs
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=sp), intent(in), dimension(:,:,:,:) :: matrix
+        integer, intent(in) :: dim4indexstart
+
+        real(kind=sp), dimension(:,:,:,:), allocatable :: temp
+
+        character(len=100) :: dset_name ! dataset name
+
+        ! data dimensions for full data and slice data
+        integer(HSIZE_T), dimension(4) :: matrix_dim
+        integer(HSIZE_T), dimension(4) :: slice_data_dim
+        integer(HSIZE_T), dimension(4) :: slabOffset ! hyperslab offset
+
+        integer :: error ! error flag
+        INTEGER(HID_T) :: file_id   ! file id
+        INTEGER(HID_T) :: dspace_id ! dataspace id
+        INTEGER(HID_T) :: mspace_id ! memeory space id
+        INTEGER(HID_T) :: dset_id   ! dataset id
+
+
+        ! get matrix dimension
+        matrix_dim = shape(matrix)
+        slice_data_dim(1) = matrix_dim(1)
+        slice_data_dim(2) = matrix_dim(2)
+        slice_data_dim(3) = matrix_dim(3)
+        slice_data_dim(4) = matrix_dim(4)
+        ! Allocate temp buffer
+        allocate(temp( slice_data_dim(1), slice_data_dim(2), slice_data_dim(3), slice_data_dim(4)))
+
+        ! ------------------------ Setup File and Group ------------------------
+        ! Initialize hdf5 interface
+        call h5open_f(error)
+        ! Open file with read and write access
+        call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error)
+        ! Group is already created by h5save_CPartial_Init
+
+        ! ----------------------------- Real part -----------------------------
+        dset_name = varname // "/" // varname // "_REAL"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim4indexstart (offset dim4indexstart-1)
+        slabOffset = (/ 0, 0, 0, dim4indexstart - 1 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 4 and size slice_data_dim
+        call h5screate_simple_f(4, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create single precision dataset with path '/var/var_REAL' and write data
+        temp = real(matrix, sp)
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
+                mem_space_id=mspace_id, file_space_id=dspace_id)
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! --------------------------- Imaginary part ---------------------------
+        dset_name = varname // "/" // varname // "_IMAG"
+
+        ! open dataset
+        call h5dopen_f(file_id, dset_name, dset_id, error)
+
+        ! Get disk dataspace ID from the dataset
+        call h5dget_space_f(dset_id, dspace_id, error)
+        ! select that hyperlsab of the disk dataspace, which is the xz planes at this dim4indexstart (offset dim4indexstart-1)
+        slabOffset = (/ 0, 0, 0, dim4indexstart - 1 /)
+        call h5sselect_hyperslab_f(dspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+        ! Create memory dataspace with rank 4 and size slice_data_dim
+        call h5screate_simple_f(4, slice_data_dim, mspace_id, error)
+        ! select that hyperlsab of the memory dataspace, (no offset)
+        slabOffset = (/ 0, 0, 0, 0 /)
+        call h5sselect_hyperslab_f(mspace_id, H5S_SELECT_SET_F, slabOffset, slice_data_dim, error)
+
+        ! Create single precision dataset with path '/var/var_IMAG' and write data
+        temp = aimag(matrix)
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, temp, slice_data_dim, error, &
+                mem_space_id=mspace_id, file_space_id=dspace_id)
+        ! Close dataset
+        call h5dclose_f(dset_id, error)
+
+        ! Close disk dataspace
+        call h5sclose_f(dspace_id, error)
+        ! Close memory dataspace
+        call h5sclose_f(mspace_id, error)
+        ! Flush buffers to disk. Not flushing buffers may lead to corrupted hdf5 files
+        call h5fflush_f(file_id, H5F_SCOPE_GLOBAL_F, error)
+
+        ! ------------------------------ Clean up ------------------------------
+        ! Close the file
+        CALL h5fclose_f(file_id, error)
+        ! Close FORTRAN interface
+        CALL h5close_f(error)
+        ! Deallocate temp buffer
+        DEALLOCATE(temp)
+    end subroutine h5save_C4Partial_Dim4Range_sp
 
 
 end module h5save
