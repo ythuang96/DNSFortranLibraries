@@ -72,6 +72,7 @@ contains
     ! Arguments
     !   myid: [integer, input] processor ID
     subroutine progress_endloop(myid)
+        use iso_fortran_env, only: output_unit
         integer, intent(in) :: myid
 
         integer :: hhe, mme, sse, hhr, mmr, ssr
@@ -106,6 +107,8 @@ contains
 
             ! Increment progress counter, which counts the finished loops
             progress_counter = progress_counter + 1
+
+            flush(output_unit)
         endif
 
     end subroutine progress_endloop
