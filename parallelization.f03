@@ -1276,110 +1276,66 @@ contains
 
     end subroutine
 
-
-    ! subroutine allreduce_C1(vec_in, vec_out, operator)
+! **************************** AllReduce and BCast ****************************
+    ! subroutine allreduce_C1(vec, operator)
     ! This function peforms MPI_allreduce on a 1d complex vector
     ! The allreduce operation is performed element wise for each element in the vector
     !
     ! Arguments:
-    !   vec_in      : [double/single, size (size_dim1), Input]
-    !                 the input data vector
-    !   vec_out     : [double/single, size (size_dim1), Output]
-    !                 the output data vector after the MPI_ALLREDUCE operation
+    !   vec         : [double/single, size (size_dim1), Input/Output]
+    !                 the input/output data vector, all reduce is performed in place
     !   mpi_operator: [Integer, Input]
     !                 MPI operation to perform, ex: MPI_SUM, MPI_MAX, MPI_MIN etc
-    subroutine allreduce_C1(vec_in, vec_out, mpi_operator)
-        complex(kind=cp), intent( in), dimension(:) ::  vec_in ! size (size_dim1)
-        complex(kind=cp), intent(out), dimension(:) :: vec_out ! size (size_dim1)
+    subroutine allreduce_C1(vec, mpi_operator)
+        complex(kind=cp), intent(inout), dimension(:) :: vec ! size (size_dim1)
         integer, intent( in) :: mpi_operator
 
-        ! send and recv buffers
-        real(kind=cp), dimension(:,:), allocatable :: send_buffer, recv_buffer
         integer :: size_matrix(1), count
         ! MPI
         integer :: ierr
 
-
         ! get matrix dimensions
-        size_matrix = shape( vec_in )
-
-        ! Allocate send and recv buffers
-        allocate( send_buffer(size_matrix(1), 2) )
-        allocate( recv_buffer(size_matrix(1), 2) )
-
-        ! Package real and imaginary parts
-        send_buffer(:,1) =  real( vec_in, cp)
-        send_buffer(:,2) = aimag( vec_in )
+        size_matrix = shape( vec )
         ! Data count (times 2 for real and imaginary parts)
         count = size_matrix(1) * 2
 
         ! Sum data over all processors
         if      ( cp .eq. dp ) then
-            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_DOUBLE_PRECISION, mpi_operator, MPI_COMM_WORLD, ierr)
+            call MPI_ALLREDUCE( MPI_IN_PLACE, vec, count, MPI_DOUBLE_COMPLEX, mpi_operator, MPI_COMM_WORLD, ierr)
         else if ( cp .eq. sp ) then
-            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_REAL            , mpi_operator, MPI_COMM_WORLD, ierr)
+            call MPI_ALLREDUCE( MPI_IN_PLACE, vec, count, MPI_COMPLEX       , mpi_operator, MPI_COMM_WORLD, ierr)
         endif
-
-        ! Build final result from real and imaginary parts
-        vec_out = CMPLX( recv_buffer(:,1), recv_buffer(:,2), cp)
-
-        ! Deallocate buffer
-        deallocate( send_buffer )
-        deallocate( recv_buffer )
-
     end subroutine allreduce_C1
 
 
-    ! subroutine allreduce_C2(matrix_in, matrix_out, operator)
+    ! subroutine allreduce_C2(matrix, operator)
     ! This function peforms MPI_allreduce on a 2d complex matrix
     ! The allreduce operation is performed element wise for each element in the matrix
     !
     ! Arguments:
-    !   matrix_in   : [double/single, size (size_dim1, size_dim2), Input]
-    !                 the input data matrix
-    !   matrix_out  : [double/single, size (size_dim1, size_dim2), Input]
-    !                 the output data matrix after the MPI_ALLREDUCE operation
+    !   matrix      : [double/single, size (size_dim1, size_dim2), Input/Output]
+    !                 the input/output data matrix, all reduce is performed in place
     !   mpi_operator: [Integer, Input]
     !                 MPI operation to perform, ex: MPI_SUM, MPI_MAX, MPI_MIN etc
-    subroutine allreduce_C2(matrix_in, matrix_out, mpi_operator)
-        complex(kind=cp), intent( in), dimension(:,:) ::  matrix_in ! size (size_dim1, size_dim2)
-        complex(kind=cp), intent(out), dimension(:,:) :: matrix_out ! size (size_dim1, size_dim2)
+    subroutine allreduce_C2(matrix, mpi_operator)
+        complex(kind=cp), intent(inout), dimension(:,:) :: matrix ! size (size_dim1, size_dim2)
         integer, intent( in) :: mpi_operator
 
-        ! send and recv buffers
-        real(kind=cp), dimension(:,:,:), allocatable :: send_buffer, recv_buffer
         integer :: size_matrix(2), count
         ! MPI
         integer :: ierr
 
-
         ! get matrix dimensions
-        size_matrix = shape( matrix_in )
-
-        ! Allocate send and recv buffers
-        allocate( send_buffer(size_matrix(1), size_matrix(2), 2) )
-        allocate( recv_buffer(size_matrix(1), size_matrix(2), 2) )
-
-        ! Package real and imaginary parts
-        send_buffer(:,:,1) =  real( matrix_in(:,:), cp)
-        send_buffer(:,:,2) = aimag( matrix_in(:,:) )
+        size_matrix = shape( matrix )
         ! Data count (times 2 for real and imaginary parts)
         count = size_matrix(1) * size_matrix(2) * 2
 
         ! Sum data over all processors
         if      ( cp .eq. dp ) then
-            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_DOUBLE_PRECISION, mpi_operator, MPI_COMM_WORLD, ierr)
+            call MPI_ALLREDUCE( MPI_IN_PLACE, matrix, count, MPI_DOUBLE_COMPLEX, mpi_operator, MPI_COMM_WORLD, ierr)
         else if ( cp .eq. sp ) then
-            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_REAL            , mpi_operator, MPI_COMM_WORLD, ierr)
+            call MPI_ALLREDUCE( MPI_IN_PLACE, matrix, count, MPI_COMPLEX       , mpi_operator, MPI_COMM_WORLD, ierr)
         endif
-
-        ! Build final result from real and imaginary parts
-        matrix_out = CMPLX( recv_buffer(:,:,1), recv_buffer(:,:,2), cp)
-
-        ! Deallocate buffer
-        deallocate( send_buffer )
-        deallocate( recv_buffer )
-
     end subroutine allreduce_C2
 
 
