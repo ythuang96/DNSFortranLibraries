@@ -6,7 +6,7 @@ module parallelization
 #   include "parameters"
 
     public :: pointers, distribute_C2_slicedim1
-    public :: distribute_C3_slicedim1, distribute_C3_slicedim2, distribute_C3_slicedim3
+    public :: distribute_C3_slicedim1, distribute_C3_slicedim2, distribute_C3_slicedim3_dp, distribute_C3_slicedim3_sp
     public :: change_dim2slice_to_dim3slice, change_dim3slice_to_dim2slice
     public :: change_dim3slice_to_dim1slice, change_dim2slice_to_dim1slice
     public :: change_dim2slice_to_dim3slice_sp
@@ -335,7 +335,7 @@ contains
         endif
     end subroutine distribute_C3_slicedim2
 
-    ! subroutine distribute_C3_slicedim3( myid, sourceid, C3_full, C3_slice, size_matrix  )
+    ! subroutine distribute_C3_slicedim3_dp( myid, sourceid, C3_full, C3_slice, size_matrix  )
     ! This function distribute a complex rank 3 matrix from sourceid to each processor
     ! Each processor will get full data for dimension 1 and 2,
     ! but only get a few grid points for dimension 3
@@ -352,11 +352,11 @@ contains
     !               but only a few grid points for dimension 3
     !   size_matrix [integer, size(3), Input]
     !               size of the full matrix
-    subroutine distribute_C3_slicedim3( myid, sourceid, C3_full, C3_slice, size_matrix )
+    subroutine distribute_C3_slicedim3_dp( myid, sourceid, C3_full, C3_slice, size_matrix )
         ! Input/Output
         integer, intent(in) :: myid, sourceid
-        complex(kind=cp), intent( in), dimension(:,:,:) :: C3_full
-        complex(kind=cp), intent(out), dimension(:,:,:) :: C3_slice
+        complex(kind=dp), intent( in), dimension(:,:,:) :: C3_full
+        complex(kind=dp), intent(out), dimension(:,:,:) :: C3_slice
 
         ! Matrix sizes
         integer, intent(in), dimension(3) :: size_matrix
@@ -408,11 +408,7 @@ contains
                     nsend = size_dim1 * size_dim2 * (e3_target-b3_target+1)
 
                     ! sourceid send data to iproc
-                    if ( cp .eq. dp ) then
-                        call MPI_SEND(C3_full(:,:,b3_target:e3_target), nsend, MPI_DOUBLE_COMPLEX, iproc, 0, MPI_COMM_WORLD, ierr )
-                    else if ( cp .eq. sp ) then
-                        call MPI_SEND(C3_full(:,:,b3_target:e3_target), nsend, MPI_COMPLEX       , iproc, 0, MPI_COMM_WORLD, ierr )
-                    endif
+                    call MPI_SEND(C3_full(:,:,b3_target:e3_target), nsend, MPI_DOUBLE_COMPLEX, iproc, 0, MPI_COMM_WORLD, ierr )
                 endif
             enddo
         else
@@ -420,13 +416,95 @@ contains
             ! number of data received
             nreceive = size_dim1 * size_dim2 * (e3-b3+1)
             ! receive data from sourceid
-            if ( cp .eq. dp ) then
-                call MPI_RECV(C3_slice, nreceive, MPI_DOUBLE_COMPLEX, sourceid, 0, MPI_COMM_WORLD, istat, ierr )
-            else if ( cp .eq. sp ) then
-                call MPI_RECV(C3_slice, nreceive, MPI_COMPLEX       , sourceid, 0, MPI_COMM_WORLD, istat, ierr )
-            endif
+            call MPI_RECV(C3_slice, nreceive, MPI_DOUBLE_COMPLEX, sourceid, 0, MPI_COMM_WORLD, istat, ierr )
         endif
-    end subroutine distribute_C3_slicedim3
+    end subroutine distribute_C3_slicedim3_dp
+
+
+    ! subroutine distribute_C3_slicedim3_sp( myid, sourceid, C3_full, C3_slice, size_matrix  )
+    ! This function distribute a complex rank 3 matrix from sourceid to each processor
+    ! Each processor will get full data for dimension 1 and 2,
+    ! but only get a few grid points for dimension 3
+    ! Arguments:
+    !   myid        [integer, Input]
+    !               processor ID
+    !   sourceid    [integer, Input]
+    !               the processor ID where the full data field is saved
+    !   C3_full     [double/single complex, size (size_dim1,size_dim2,size_dim3), Input]
+    !               the full complex rank 3 matrix
+    !               this does not need to be allocated to the full size for all processors other than the source
+    !   C3_slice    [double/single complex, size (size_dim1,size_dim2,b3:e3), Output]
+    !               the complex rank 3 matrix for each processor, full data for dimension 1 and 2,
+    !               but only a few grid points for dimension 3
+    !   size_matrix [integer, size(3), Input]
+    !               size of the full matrix
+    subroutine distribute_C3_slicedim3_sp( myid, sourceid, C3_full, C3_slice, size_matrix )
+        ! Input/Output
+        integer, intent(in) :: myid, sourceid
+        complex(kind=sp), intent( in), dimension(:,:,:) :: C3_full
+        complex(kind=sp), intent(out), dimension(:,:,:) :: C3_slice
+
+        ! Matrix sizes
+        integer, intent(in), dimension(3) :: size_matrix
+        integer :: size_dim1, size_dim2, size_dim3
+
+        ! Pointers for dimension 2 distribution
+        integer :: b3v(0:numerop-1), e3v(0:numerop-1)
+        integer :: b3, e3
+
+        ! temp b2 e2 pointers for the target processor
+        integer :: b3_target, e3_target
+
+        ! send/receive data size
+        integer :: nsend, nreceive
+        ! Loop index
+        integer :: iproc
+
+        ! MPI
+        integer :: istat(MPI_STATUS_SIZE), ierr
+
+
+        ! --------------------- Get Full Matrix Dimensions ---------------------
+        size_dim1   = size_matrix(1)  ! size of dimension 1
+        size_dim2   = size_matrix(2)  ! size of dimension 2
+        size_dim3   = size_matrix(3)  ! size of dimension 3
+
+        ! --------------------- Compute Dimension 3 Slices ---------------------
+        ! compute the vector pointers for dim 3
+        ! these vectors contain the begin and end indices for all processors
+        call pointers( b3v, e3v, size_dim3 ) ! dimension 3 begin and end indices
+        ! begin and end indices for the current processor
+        b3 = b3v(myid)
+        e3 = e3v(myid)
+
+        ! ----------------------- Send and Receive Data -----------------------
+        if ( myid .eq. sourceid ) then
+            ! if I am the source, then copy the data I need
+            C3_slice = C3_full(:,:,b3:e3)
+
+            ! sourceid send data to each processor except for itself
+            ! each processor gets (size_dim1,size_dim2,b3_target:e3_target)
+            ! (full dim 1 and 2 data, but only at a few dim 3 grid points)
+            do iproc = numerop-1, 0, -1
+                if ( iproc .ne. sourceid ) then ! no need to send data to itself
+                    ! b3, e3 for the target processor
+                    b3_target = b3v(iproc)
+                    e3_target = e3v(iproc)
+                    ! number of data sent
+                    nsend = size_dim1 * size_dim2 * (e3_target-b3_target+1)
+
+                    ! sourceid send data to iproc
+                    call MPI_SEND(C3_full(:,:,b3_target:e3_target), nsend, MPI_COMPLEX       , iproc, 0, MPI_COMM_WORLD, ierr )
+                endif
+            enddo
+        else
+            ! All other processors receive data from sourceid
+            ! number of data received
+            nreceive = size_dim1 * size_dim2 * (e3-b3+1)
+            ! receive data from sourceid
+            call MPI_RECV(C3_slice, nreceive, MPI_COMPLEX       , sourceid, 0, MPI_COMM_WORLD, istat, ierr )
+        endif
+    end subroutine distribute_C3_slicedim3_sp
 
 ! ************************* Distribution Plane Change *************************
     ! subroutine change_dim2slice_to_dim3slice( dim2slice, myid, dim3slice )
