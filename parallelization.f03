@@ -1127,8 +1127,8 @@ contains
 
         ! get matrix dimensions
         size_matrix = shape( vec )
-        ! Data count (times 2 for real and imaginary parts)
-        count = size_matrix(1) * 2
+        ! Data count
+        count = size_matrix(1)
 
         ! Sum data over all processors
         if      ( cp .eq. dp ) then
@@ -1158,8 +1158,8 @@ contains
 
         ! get matrix dimensions
         size_matrix = shape( matrix )
-        ! Data count (times 2 for real and imaginary parts)
-        count = size_matrix(1) * size_matrix(2) * 2
+        ! Data count
+        count = size_matrix(1) * size_matrix(2)
 
         ! Sum data over all processors
         if      ( cp .eq. dp ) then
