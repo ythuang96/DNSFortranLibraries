@@ -8,8 +8,8 @@ module parallelization
     public :: pointers, distribute_C2_slicedim1
     public :: distribute_C3_slicedim1, distribute_C3_slicedim2, distribute_C3_slicedim3
     public :: change_dim2slice_to_dim3slice, change_dim3slice_to_dim2slice
-    public :: change_dim2slice_to_dim3slice_sp
     public :: change_dim3slice_to_dim1slice, change_dim2slice_to_dim1slice
+    public :: change_dim2slice_to_dim3slice_sp
     public :: changeR_dim3slice_to_dim2slice
     public :: allreduce_C1, allreduce_C2
     public :: bcast_C2
@@ -56,7 +56,7 @@ contains
 
     end subroutine pointers
 
-
+! ******************************** Distribution ********************************
     ! subroutine distribute_C2_slicedim1( myid, sourceid, C2_full, C2_slice )
     ! This function distribute a complex rank 2 matrix from sourceid to each processor
     ! Each processor will get full data for dimension 2,
@@ -161,7 +161,6 @@ contains
             DEALLOCATE(receive_buffer)
         endif
     end subroutine distribute_C2_slicedim1
-
 
     ! subroutine distribute_C3_slicedim1( myid, sourceid, C3_full, C3_slice )
     ! This function distribute a complex rank 3 matrix from sourceid to each processor
@@ -269,7 +268,6 @@ contains
         endif
     end subroutine distribute_C3_slicedim1
 
-
     ! subroutine distribute_C3_slicedim2( myid, sourceid, C3_full, C3_slice )
     ! This function distribute a complex rank 3 matrix from sourceid to each processor
     ! Each processor will get full data for dimension 1 and 3,
@@ -375,7 +373,6 @@ contains
             DEALLOCATE(receive_buffer)
         endif
     end subroutine distribute_C3_slicedim2
-
 
     ! subroutine distribute_C3_slicedim3( myid, sourceid, C3_full, C3_slice )
     ! This function distribute a complex rank 3 matrix from sourceid to each processor
@@ -483,7 +480,7 @@ contains
         endif
     end subroutine distribute_C3_slicedim3
 
-
+! ************************* Distribution Plane Change *************************
     ! subroutine change_dim2slice_to_dim3slice( dim2slice, myid, dim3slice )
     ! This function exchange the data between all processors
     ! each processor originally has all the data for dimension 1 and 3 ( but only a few dim 2 grid points )
@@ -516,10 +513,6 @@ contains
         integer :: b2_target, e2_target
         integer :: b3_target, e3_target
 
-        ! buffer to package real with imaginary
-        real(kind=cp), dimension(:,:,:,:), allocatable :: send_buffer
-        real(kind=cp), dimension(:,:,:,:), allocatable :: recv_buffer
-
         ! send and recieve data size
         integer :: nsend, nrecv
 
@@ -538,7 +531,6 @@ contains
         ! compute the full dimension 2 size by adding all the dimension 2 slice sizes
         call MPI_ALLREDUCE(size_dim2slice, size_dim2full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-
         ! ------------------ Compute Dimension 2 and 3 Slices ------------------
         ! compute the vector pointers for dim 2 and 3
         ! these vectors contain the begin and end indices for all processors
@@ -550,20 +542,8 @@ contains
         b3 = b3v(myid)
         e3 = e3v(myid)
 
-
-        ! ----------------- Allocate send and receive buffers -----------------
-        ALLOCATE( send_buffer( size_dim1, b2:e2, size_dim3full, 2 ) )
-        ALLOCATE( recv_buffer( size_dim1, size_dim2full, b3:e3, 2 ) )
-
-
-        ! ------------- Package Real and Imaginary Part of My Data -------------
-        send_buffer(:,b2:e2,:,1) =  real( dim2slice(:,:,:), cp)
-        send_buffer(:,b2:e2,:,2) = aimag( dim2slice(:,:,:) )
-
-
         ! ----------------- Get Part of Data from Myself First -----------------
-        recv_buffer(:, b2:e2, b3:e3, :) = send_buffer(:, b2:e2, b3:e3, :)
-
+        dim3slice(:, b2:e2, 1:e3-b3+1) = dim2slice(:, 1:e2-b2+1, b3:e3)
 
         ! ------------- Loop Over All Processors Except For Myself -------------
         ! each processor will exchange data with me
@@ -586,36 +566,25 @@ contains
                 ! I only need data for b3:e3
                 ! and iproc only has data for b2_target:e2_target
 
-                ! send and recieve data size, *2 for real and imaginary
-                nsend = size_dim1 * (e2-b2+1) * (e3_target-b3_target+1) * 2
-                nrecv = size_dim1 * (e2_target-b2_target+1) * (e3-b3+1) * 2
+                ! send and recieve data size
+                nsend = size_dim1 * (e2-b2+1) * (e3_target-b3_target+1)
+                nrecv = size_dim1 * (e2_target-b2_target+1) * (e3-b3+1)
 
                 ! exchange data
                 if ( cp .eq. dp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(:, b2:e2, b3_target:e3_target,:) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
-                        recv_buffer(:, b2_target:e2_target, b3:e3,:) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
+                        dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nsend,MPI_DOUBLE_COMPLEX,iproc,0, &
+                        dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nrecv,MPI_DOUBLE_COMPLEX,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 else if ( cp .eq. sp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(:, b2:e2, b3_target:e3_target,:) ,nsend,MPI_REAL            ,iproc,0, &
-                        recv_buffer(:, b2_target:e2_target, b3:e3,:) ,nrecv,MPI_REAL            ,iproc,0, &
+                        dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nsend,MPI_COMPLEX       ,iproc,0, &
+                        dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nrecv,MPI_COMPLEX       ,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 endif
             endif
         enddo
-
-
-        ! ------------------------ Build Complex Output ------------------------
-        dim3slice = CMPLX( recv_buffer(:,:,b3:e3,1), recv_buffer(:,:,b3:e3,2), cp)
-
-
-        ! -------------------------- Deallocate buffer --------------------------
-        DEALLOCATE( send_buffer )
-        DEALLOCATE( recv_buffer )
-
     end subroutine
-
 
     ! subroutine change_dim2slice_to_dim3slice_sp( dim2slice, myid, dim3slice )
     ! This function exchange the data between all processors
@@ -649,10 +618,6 @@ contains
         integer :: b2_target, e2_target
         integer :: b3_target, e3_target
 
-        ! buffer to package real with imaginary
-        real(kind=sp), dimension(:,:,:,:), allocatable :: send_buffer
-        real(kind=sp), dimension(:,:,:,:), allocatable :: recv_buffer
-
         ! send and recieve data size
         integer :: nsend, nrecv
 
@@ -671,7 +636,6 @@ contains
         ! compute the full dimension 2 size by adding all the dimension 2 slice sizes
         call MPI_ALLREDUCE(size_dim2slice, size_dim2full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-
         ! ------------------ Compute Dimension 2 and 3 Slices ------------------
         ! compute the vector pointers for dim 2 and 3
         ! these vectors contain the begin and end indices for all processors
@@ -683,20 +647,8 @@ contains
         b3 = b3v(myid)
         e3 = e3v(myid)
 
-
-        ! ----------------- Allocate send and receive buffers -----------------
-        ALLOCATE( send_buffer( size_dim1, b2:e2, size_dim3full, 2 ) )
-        ALLOCATE( recv_buffer( size_dim1, size_dim2full, b3:e3, 2 ) )
-
-
-        ! ------------- Package Real and Imaginary Part of My Data -------------
-        send_buffer(:,b2:e2,:,1) =  real( dim2slice(:,:,:), sp)
-        send_buffer(:,b2:e2,:,2) = aimag( dim2slice(:,:,:) )
-
-
         ! ----------------- Get Part of Data from Myself First -----------------
-        recv_buffer(:, b2:e2, b3:e3, :) = send_buffer(:, b2:e2, b3:e3, :)
-
+        dim3slice(:, b2:e2, 1:e3-b3+1) = dim2slice(:, 1:e2-b2+1, b3:e3)
 
         ! ------------- Loop Over All Processors Except For Myself -------------
         ! each processor will exchange data with me
@@ -719,29 +671,18 @@ contains
                 ! I only need data for b3:e3
                 ! and iproc only has data for b2_target:e2_target
 
-                ! send and recieve data size, *2 for real and imaginary
-                nsend = size_dim1 * (e2-b2+1) * (e3_target-b3_target+1) * 2
-                nrecv = size_dim1 * (e2_target-b2_target+1) * (e3-b3+1) * 2
+                ! send and recieve data size
+                nsend = size_dim1 * (e2-b2+1) * (e3_target-b3_target+1)
+                nrecv = size_dim1 * (e2_target-b2_target+1) * (e3-b3+1)
 
                 ! exchange data
                 call MPI_SENDRECV( &
-                    send_buffer(:, b2:e2, b3_target:e3_target,:) ,nsend,MPI_REAL            ,iproc,0, &
-                    recv_buffer(:, b2_target:e2_target, b3:e3,:) ,nrecv,MPI_REAL            ,iproc,0, &
+                    dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nsend,MPI_COMPLEX ,iproc,0, &
+                    dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nrecv,MPI_COMPLEX ,iproc,0, &
                     MPI_COMM_WORLD,istat,ierr)
             endif
         enddo
-
-
-        ! ------------------------ Build Complex Output ------------------------
-        dim3slice = CMPLX( recv_buffer(:,:,b3:e3,1), recv_buffer(:,:,b3:e3,2), kind = sp)
-
-
-        ! -------------------------- Deallocate buffer --------------------------
-        DEALLOCATE( send_buffer )
-        DEALLOCATE( recv_buffer )
-
     end subroutine
-
 
     ! subroutine change_dim3slice_to_dim2slice( dim3slice, myid, dim2slice )
     ! This function exchange the data between all processors
@@ -775,10 +716,6 @@ contains
         integer :: b2_target, e2_target
         integer :: b3_target, e3_target
 
-        ! buffer to package real with imaginary
-        real(kind=cp), dimension(:,:,:,:), allocatable :: send_buffer
-        real(kind=cp), dimension(:,:,:,:), allocatable :: recv_buffer
-
         ! send and recieve data size
         integer :: nsend, nrecv
 
@@ -797,7 +734,6 @@ contains
         ! compute the full dimension 3 size by adding all the dimension 3 slice sizes
         call MPI_ALLREDUCE(size_dim3slice, size_dim3full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-
         ! ------------------ Compute Dimension 2 and 3 Slices ------------------
         ! compute the vector pointers for dim 2 and 3
         ! these vectors contain the begin and end indices for all processors
@@ -809,20 +745,8 @@ contains
         b3 = b3v(myid)
         e3 = e3v(myid)
 
-
-        ! ----------------- Allocate send and receive buffers -----------------
-        ALLOCATE( send_buffer( size_dim1, size_dim2full, b3:e3, 2 ) )
-        ALLOCATE( recv_buffer( size_dim1, b2:e2, size_dim3full, 2 ) )
-
-
-        ! ------------- Package Real and Imaginary Part of My Data -------------
-        send_buffer(:,:,b3:e3,1) =  real( dim3slice(:,:,:), cp)
-        send_buffer(:,:,b3:e3,2) = aimag( dim3slice(:,:,:) )
-
-
         ! ----------------- Get Part of Data from Myself First -----------------
-        recv_buffer(:, b2:e2, b3:e3, :) = send_buffer(:, b2:e2, b3:e3, :)
-
+        dim2slice(:, 1:e2-b2+1, b3:e3) = dim3slice(:, b2:e2, 1:e3-b3+1)
 
         ! ------------- Loop Over All Processors Except For Myself -------------
         ! each processor will exchange data with me
@@ -845,36 +769,25 @@ contains
                 ! I only need data for b2:e2
                 ! and iproc only has data for b3_target:e3_target
 
-                ! send and recieve data size, *2 for real and imaginary
-                nsend = size_dim1 * (e2_target-b2_target+1) * (e3-b3+1) * 2
-                nrecv = size_dim1 * (e2-b2+1) * (e3_target-b3_target+1) * 2
+                ! send and recieve data size
+                nsend = size_dim1 * (e2_target-b2_target+1) * (e3-b3+1)
+                nrecv = size_dim1 * (e2-b2+1) * (e3_target-b3_target+1)
 
                 ! exchange data
                 if ( cp .eq. dp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(:, b2_target:e2_target, b3:e3,:) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
-                        recv_buffer(:, b2:e2, b3_target:e3_target,:) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
+                        dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nsend,MPI_DOUBLE_COMPLEX,iproc,0, &
+                        dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nrecv,MPI_DOUBLE_COMPLEX,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 else if ( cp .eq. sp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(:, b2_target:e2_target, b3:e3,:) ,nsend,MPI_REAL            ,iproc,0, &
-                        recv_buffer(:, b2:e2, b3_target:e3_target,:) ,nrecv,MPI_REAL            ,iproc,0, &
+                        dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nsend,MPI_COMPLEX       ,iproc,0, &
+                        dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nrecv,MPI_COMPLEX       ,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 endif
             endif
         enddo
-
-
-        ! ------------------------ Build Complex Output ------------------------
-        dim2slice = CMPLX( recv_buffer(:,b2:e2,:,1), recv_buffer(:,b2:e2,:,2), cp)
-
-
-        ! -------------------------- Deallocate buffer --------------------------
-        DEALLOCATE( send_buffer )
-        DEALLOCATE( recv_buffer )
-
     end subroutine
-
 
     ! subroutine change_dim2slice_to_dim1slice( dim2slice, myid, dim1slice )
     ! This function exchange the data between all processors
@@ -908,10 +821,6 @@ contains
         integer :: b1_target, e1_target
         integer :: b2_target, e2_target
 
-        ! buffer to package real with imaginary
-        real(kind=cp), dimension(:,:,:,:), allocatable :: send_buffer
-        real(kind=cp), dimension(:,:,:,:), allocatable :: recv_buffer
-
         ! send and recieve data size
         integer :: nsend, nrecv
 
@@ -930,7 +839,6 @@ contains
         ! compute the full dimension 2 size by adding all the dimension 2 slice sizes
         call MPI_ALLREDUCE(size_dim2slice, size_dim2full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-
         ! ------------------ Compute Dimension 1 and 2 Slices ------------------
         ! compute the vector pointers for dim 1 and 2
         ! these vectors contain the begin and end indices for all processors
@@ -942,20 +850,8 @@ contains
         b2 = b2v(myid)
         e2 = e2v(myid)
 
-
-        ! ----------------- Allocate send and receive buffers -----------------
-        ALLOCATE( send_buffer( size_dim1full, b2:e2, size_dim3full, 2 ) )
-        ALLOCATE( recv_buffer( b1:e1, size_dim2full, size_dim3full, 2 ) )
-
-
-        ! ------------- Package Real and Imaginary Part of My Data -------------
-        send_buffer(:,b2:e2,:,1) =  real( dim2slice(:,:,:), cp)
-        send_buffer(:,b2:e2,:,2) = aimag( dim2slice(:,:,:) )
-
-
         ! ----------------- Get Part of Data from Myself First -----------------
-        recv_buffer(b1:e1, b2:e2, :, :) = send_buffer(b1:e1, b2:e2, :, :)
-
+        dim1slice(1:e1-b1+1, b2:e2, :) = dim2slice(b1:e1, 1:e2-b2+1, :)
 
         ! ------------- Loop Over All Processors Except For Myself -------------
         ! each processor will exchange data with me
@@ -978,36 +874,25 @@ contains
                 ! I only need data for b1:e1
                 ! and iproc only has data for b2_target:e2_target
 
-                ! send and recieve data size, *2 for real and imaginary
-                nsend = (e1_target-b1_target+1) * (e2-b2+1) * size_dim3full * 2
-                nrecv = (e1-b1+1) * (e2_target-b2_target+1) * size_dim3full * 2
+                ! send and recieve data size
+                nsend = (e1_target-b1_target+1) * (e2-b2+1) * size_dim3full
+                nrecv = (e1-b1+1) * (e2_target-b2_target+1) * size_dim3full
 
                 ! exchange data
                 if ( cp .eq. dp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(b1_target:e1_target, b2:e2, :,:) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
-                        recv_buffer(b1:e1, b2_target:e2_target, :,:) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
+                        dim2slice(b1_target:e1_target, 1:e2-b2+1, :) ,nsend,MPI_DOUBLE_COMPLEX,iproc,0, &
+                        dim1slice(1:e1-b1+1, b2_target:e2_target, :) ,nrecv,MPI_DOUBLE_COMPLEX,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 else if ( cp .eq. sp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(b1_target:e1_target, b2:e2, :,:) ,nsend,MPI_REAL            ,iproc,0, &
-                        recv_buffer(b1:e1, b2_target:e2_target, :,:) ,nrecv,MPI_REAL            ,iproc,0, &
+                        dim2slice(b1_target:e1_target, 1:e2-b2+1, :) ,nsend,MPI_COMPLEX       ,iproc,0, &
+                        dim1slice(1:e1-b1+1, b2_target:e2_target, :) ,nrecv,MPI_COMPLEX       ,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 endif
             endif
         enddo
-
-
-        ! ------------------------ Build Complex Output ------------------------
-        dim1slice = CMPLX( recv_buffer(b1:e1,:,:,1), recv_buffer(b1:e1,:,:,2), cp)
-
-
-        ! -------------------------- Deallocate buffer --------------------------
-        DEALLOCATE( send_buffer )
-        DEALLOCATE( recv_buffer )
-
     end subroutine
-
 
     ! subroutine change_dim3slice_to_dim1slice( dim3slice, myid, dim1slice )
     ! This function exchange the data between all processors
@@ -1041,10 +926,6 @@ contains
         integer :: b1_target, e1_target
         integer :: b3_target, e3_target
 
-        ! buffer to package real with imaginary
-        real(kind=cp), dimension(:,:,:,:), allocatable :: send_buffer
-        real(kind=cp), dimension(:,:,:,:), allocatable :: recv_buffer
-
         ! send and recieve data size
         integer :: nsend, nrecv
 
@@ -1063,7 +944,6 @@ contains
         ! compute the full dimension 3 size by adding all the dimension 3 slice sizes
         call MPI_ALLREDUCE(size_dim3slice, size_dim3full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-
         ! ------------------ Compute Dimension 1 and 3 Slices ------------------
         ! compute the vector pointers for dim 1 and 3
         ! these vectors contain the begin and end indices for all processors
@@ -1075,20 +955,8 @@ contains
         b3 = b3v(myid)
         e3 = e3v(myid)
 
-
-        ! ----------------- Allocate send and receive buffers -----------------
-        ALLOCATE( send_buffer( size_dim1full, size_dim2full, b3:e3, 2 ) )
-        ALLOCATE( recv_buffer( b1:e1, size_dim2full, size_dim3full, 2 ) )
-
-
-        ! ------------- Package Real and Imaginary Part of My Data -------------
-        send_buffer(:,:,b3:e3,1) =  real( dim3slice(:,:,:), cp)
-        send_buffer(:,:,b3:e3,2) = aimag( dim3slice(:,:,:) )
-
-
         ! ----------------- Get Part of Data from Myself First -----------------
-        recv_buffer(b1:e1, :, b3:e3, :) = send_buffer(b1:e1, :, b3:e3, :)
-
+        dim1slice(1:e1-b1+1, :, b3:e3) = dim3slice(b1:e1, :, 1:e3-b3+1)
 
         ! ------------- Loop Over All Processors Except For Myself -------------
         ! each processor will exchange data with me
@@ -1111,36 +979,25 @@ contains
                 ! I only need data for b1:e1
                 ! and iproc only has data for b3_target:e3_target
 
-                ! send and recieve data size, *2 for real and imaginary
-                nsend = (e1_target-b1_target+1) * size_dim2full * (e3-b3+1) * 2
-                nrecv = (e1-b1+1) * size_dim2full * (e3_target-b3_target+1) * 2
+                ! send and recieve data size
+                nsend = (e1_target-b1_target+1) * size_dim2full * (e3-b3+1)
+                nrecv = (e1-b1+1) * size_dim2full * (e3_target-b3_target+1)
 
                 ! exchange data
                 if ( cp .eq. dp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(b1_target:e1_target, :, b3:e3,:) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
-                        recv_buffer(b1:e1, :, b3_target:e3_target,:) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
+                        dim3slice(b1_target:e1_target, :, 1:e3-b3+1) ,nsend,MPI_DOUBLE_COMPLEX,iproc,0, &
+                        dim1slice(1:e1-b1+1, :, b3_target:e3_target) ,nrecv,MPI_DOUBLE_COMPLEX,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 else if ( cp .eq. sp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(b1_target:e1_target, :, b3:e3,:) ,nsend,MPI_REAL            ,iproc,0, &
-                        recv_buffer(b1:e1, :, b3_target:e3_target,:) ,nrecv,MPI_REAL            ,iproc,0, &
+                        dim3slice(b1_target:e1_target, :, 1:e3-b3+1) ,nsend,MPI_COMPLEX       ,iproc,0, &
+                        dim1slice(1:e1-b1+1, :, b3_target:e3_target) ,nrecv,MPI_COMPLEX       ,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 endif
             endif
         enddo
-
-
-        ! ------------------------ Build Complex Output ------------------------
-        dim1slice = CMPLX( recv_buffer(b1:e1,:,:,1), recv_buffer(b1:e1,:,:,2), cp)
-
-
-        ! -------------------------- Deallocate buffer --------------------------
-        DEALLOCATE( send_buffer )
-        DEALLOCATE( recv_buffer )
-
     end subroutine
-
 
     ! subroutine changeR_dim3slice_to_dim2slice( dim3slice, myid, dim2slice )
     ! This function exchange the data between all processors
@@ -1177,10 +1034,6 @@ contains
         integer :: b2_target, e2_target
         integer :: b3_target, e3_target
 
-        ! buffer to package real with imaginary
-        real(kind=cp), dimension(:,:,:), allocatable :: send_buffer
-        real(kind=cp), dimension(:,:,:), allocatable :: recv_buffer
-
         ! send and recieve data size
         integer :: nsend, nrecv
 
@@ -1199,7 +1052,6 @@ contains
         ! compute the full dimension 3 size by adding all the dimension 3 slice sizes
         call MPI_ALLREDUCE(size_dim3slice, size_dim3full, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-
         ! ------------------ Compute Dimension 2 and 3 Slices ------------------
         ! compute the vector pointers for dim 2 and 3
         ! these vectors contain the begin and end indices for all processors
@@ -1211,19 +1063,8 @@ contains
         b3 = b3v(myid)
         e3 = e3v(myid)
 
-
-        ! ----------------- Allocate send and receive buffers -----------------
-        ALLOCATE( send_buffer( size_dim1, size_dim2full, b3:e3) )
-        ALLOCATE( recv_buffer( size_dim1, b2:e2, size_dim3full) )
-
-
-        ! -------------------- Package Real Part of My Data --------------------
-        send_buffer(:,:,b3:e3) =  dim3slice(:,:,:)
-
-
         ! ----------------- Get Part of Data from Myself First -----------------
-        recv_buffer(:, b2:e2, b3:e3) = send_buffer(:, b2:e2, b3:e3)
-
+        dim2slice(:, 1:e2-b2+1, b3:e3) = dim3slice(:, b2:e2, 1:e3-b3+1)
 
         ! ------------- Loop Over All Processors Except For Myself -------------
         ! each processor will exchange data with me
@@ -1253,27 +1094,17 @@ contains
                 ! exchange data
                 if ( cp .eq. dp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(:, b2_target:e2_target, b3:e3) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
-                        recv_buffer(:, b2:e2, b3_target:e3_target) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
+                        dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nsend,MPI_DOUBLE_PRECISION,iproc,0, &
+                        dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nrecv,MPI_DOUBLE_PRECISION,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 else if ( cp .eq. sp ) then
                     call MPI_SENDRECV( &
-                        send_buffer(:, b2_target:e2_target, b3:e3) ,nsend,MPI_REAL            ,iproc,0, &
-                        recv_buffer(:, b2:e2, b3_target:e3_target) ,nrecv,MPI_REAL            ,iproc,0, &
+                        dim3slice(:, b2_target:e2_target, 1:e3-b3+1) ,nsend,MPI_REAL            ,iproc,0, &
+                        dim2slice(:, 1:e2-b2+1, b3_target:e3_target) ,nrecv,MPI_REAL            ,iproc,0, &
                         MPI_COMM_WORLD,istat,ierr)
                 endif
             endif
         enddo
-
-
-        ! ------------------------ Build Complex Output ------------------------
-        dim2slice = recv_buffer(:,b2:e2,:)
-
-
-        ! -------------------------- Deallocate buffer --------------------------
-        DEALLOCATE( send_buffer )
-        DEALLOCATE( recv_buffer )
-
     end subroutine
 
 ! **************************** AllReduce and BCast ****************************
