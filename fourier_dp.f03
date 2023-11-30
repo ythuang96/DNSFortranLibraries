@@ -6,7 +6,8 @@ module fourier_dp
 #   include "parameters"
     include 'fftw3.f03'
 
-    type(C_PTR) :: plan_ifftx, plan_ifftz, plan_fft2, plan_ifft2, plan_fftt, plan_fftt_c2c
+    type(C_PTR) :: plan_ifftx, plan_fftx, plan_ifftz, plan_fftz
+    type(C_PTR) :: plan_fft2, plan_ifft2, plan_fftt, plan_fftt_c2c
 
     complex(C_DOUBLE_COMPLEX), dimension(mgalx) :: vector_ifftx
     complex(C_DOUBLE_COMPLEX), dimension(mgalz) :: vector_ifftz
@@ -18,6 +19,7 @@ module fourier_dp
     complex(C_DOUBLE_COMPLEX), dimension(ntseg) :: vector_tom_c2c
 
     public :: fft_plan, fft2, ifft2, ifftx, ifftz, fft_tseg_r2c, fft_tseg_c2c
+    public :: ifftz_h_vec
 
 
 contains
@@ -35,7 +37,9 @@ contains
         ! Generate plans for ifft in x and z seperately
         ! These two are inplace transforms (the two pointers can be equal, indicating an in-place transform, ignore compiler warning )
         plan_ifftx = fftw_plan_dft_1d(mgalx, vector_ifftx,vector_ifftx, FFTW_BACKWARD, FFTW_PATIENT )
+        plan_fftx  = fftw_plan_dft_1d(mgalx, vector_ifftx,vector_ifftx, FFTW_FORWARD , FFTW_PATIENT )
         plan_ifftz = fftw_plan_dft_1d(mgalz, vector_ifftz,vector_ifftz, FFTW_BACKWARD, FFTW_PATIENT )
+        plan_fftz  = fftw_plan_dft_1d(mgalz, vector_ifftz,vector_ifftz, FFTW_FORWARD , FFTW_PATIENT )
 
         ! Note: the r2c and c2r versions of the transform uses the hermitian symmetry
         ! The symmetric part of the kx wavenumber is removed
@@ -199,6 +203,32 @@ contains
     end subroutine zeropad_z
 
 
+    ! subroutine zeropad_z_vec( vec_in, vec_out )
+    ! This function rearranges the wavenumbers in preperation for a fourier
+    ! transform in the z direction only.
+    ! It zero pad the high kz wavenumber
+    !
+    ! Arguments:
+    !   vec_in:  [double complex, size (mzf), Input]
+    !            the fourier coefficients
+    !   vec_out: [double complex, size (mgalz), Output]
+    !            the fourier coefficients padded with 0 for the high kz wavenumbers
+    subroutine zeropad_z_vec( vec_in, vec_out )
+        complex(kind=dp), intent( in), dimension(mzf) :: vec_in
+        complex(kind=dp), intent(out), dimension(mgalz) :: vec_out
+
+        ! initialize to 0
+        vec_out = (0.0_dp, 0.0_dp)
+
+        ! kx >= 0, kz >= 0
+        ! exact 1 to 1 mapping
+        vec_out(1:nkz_pos) = vec_in(1:nkz_pos)
+        ! kx >= 0, kz <  0
+        ! shifted 1 to 1 mapping
+        vec_out(mgalz-nkz_pos+2:mgalz) = vec_in(nkz_pos+1:nkz_full)
+    end subroutine zeropad_z_vec
+
+
     ! subroutine fft2( matrix_in, matrix_out )
     ! Computes the 2d fft for a 2d matrix (single y location)
     !
@@ -294,6 +324,28 @@ contains
             matrix_out(:,ii) = vector_ifftz
         ENDDO
     end subroutine ifftz
+
+
+    ! subroutine ifftz_h_vec( vec_in, vec_out )
+    ! Computes the special ifft for h in z only for a 1d matrix
+    ! The special ifft for h is in fact just a fft
+    !
+    ! Arguments:
+    !   vec_in:  [double complex, size (mzf), Input]
+    !            fourier domain data
+    !   vec_out: [double complex, size (mgalz), Output]
+    !            special ifft (fft) in z only
+    subroutine ifftz_h_vec( vec_in, vec_out )
+        complex(kind=dp), intent( in), dimension(mzf) :: vec_in
+        complex(kind=dp), intent(out), dimension(mgalz) :: vec_out
+
+        ! zero pad in z
+        call zeropad_z_vec( vec_in, vec_out )
+        ! special ifft in z for h ( the special ifft for h is simply a fft)
+        vector_ifftz = vec_out
+        call fftw_execute_dft(plan_fftz, vector_ifftz, vector_ifftz )
+        vec_out = vector_ifftz
+    end subroutine ifftz_h_vec
 
 
     ! subroutine fft_tseg_r2c( vector_in, matrix_out, WindowFunction )
