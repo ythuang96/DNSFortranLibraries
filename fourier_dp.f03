@@ -19,7 +19,7 @@ module fourier_dp
     complex(C_DOUBLE_COMPLEX), dimension(ntseg) :: vector_tom_c2c
 
     public :: fft_plan, fft2, ifft2, ifftx, ifftz, fft_tseg_r2c, fft_tseg_c2c
-    public :: ifftz_h_vec
+    public :: ifftz_h_vec, ifftx_h_vec
 
 
 contains
@@ -167,6 +167,32 @@ contains
     end subroutine zeropad_x
 
 
+    ! subroutine zeropad_x_vec( vec_in, vec_out )
+    ! This function rearranges the wavenumbers in preperation for a fourier
+    ! transform in the x direction only.
+    ! It zero pad the high kx wavenumber
+    !
+    ! Arguments:
+    !   vec_in:  [double complex, size (nkx_full), Input]
+    !            the fourier coefficients, with both positive and negative kx
+    !   vec_out: [double complex, size (mgalx), Output]
+    !            the fourier coefficients padded with 0 for the high kx wavenumbers
+    subroutine zeropad_x_vec( vec_in, vec_out )
+        complex(kind=dp), intent( in), dimension(nkx_full) :: vec_in
+        complex(kind=dp), intent(out), dimension(mgalx) :: vec_out
+
+        ! initialize to 0
+        vec_out = (0.0_dp, 0.0_dp)
+
+        ! kx >= 0
+        ! exact 1 to 1 mapping
+        vec_out(1:nkx_pos) = vec_in(1:nkx_pos)
+        ! kx <  0
+        ! shifted 1 to 1 mapping
+        vec_out(mgalx-nkx_pos+2:mgalx) = vec_in(nkx_pos+1:nkx_full)
+    end subroutine zeropad_x_vec
+
+
     ! subroutine zeropad_z( matrix_in, matrix_out )
     ! This function rearranges the wavenumbers in preperation for a fourier
     ! transform in the z direction only.
@@ -294,6 +320,28 @@ contains
             matrix_out(:,ii) = vector_ifftx
         ENDDO
     end subroutine ifftx
+
+
+    ! subroutine ifftx_h_vec( vec_in, vec_out )
+    ! Computes the special ifft for h in x only for a 1d matrix
+    ! The special ifft for h is in fact just a fft
+    !
+    ! Arguments:
+    !   vec_in:  [double complex, size (nkx_full), Input]
+    !            fourier domain data, with both positive and negative kx
+    !   vec_out: [double complex, size (mgalx), Output]
+    !            special ifft (fft) in x only
+    subroutine ifftx_h_vec( vec_in, vec_out )
+        complex(kind=dp), intent( in), dimension(nkx_full) :: vec_in
+        complex(kind=dp), intent(out), dimension(mgalx) :: vec_out
+
+        ! zero pad in x
+        call zeropad_x_vec( vec_in, vec_out )
+        ! special ifft in z for h ( the special ifft for h is simply a fft)
+        vector_ifftx = vec_out
+        call fftw_execute_dft(plan_fftx, vector_ifftx, vector_ifftx )
+        vec_out = vector_ifftx
+    end subroutine ifftx_h_vec
 
 
     ! subroutine ifftz( matrix_in, matrix_out )
