@@ -6,7 +6,7 @@ module h5load
     private
 #   include "parameters"
 
-    public :: h5load_R, h5load_R1, h5load_R2, h5load_C2, h5load_C3, h5loadVelocities
+    public :: h5load_R, h5load_R1, h5load_R2, h5load_C2, h5load_C3, h5load_C4_sp, h5loadVelocities
     public :: h5load_C3_partial, h5load_C4_partial_dp, h5load_C4_partial_sp
     public :: h5load_check_variable_existence
 
@@ -435,6 +435,98 @@ contains
         DEALLOCATE( matrix_i )
 
     end function h5load_C3
+
+
+    ! function ouput = h5load_C4_sp( filename, varname )
+    ! Read complex rank 4 matrix from h5 file
+    ! Arguments:
+    !   filename: [string, Input]
+    !             h5 filename with path
+    !   varname : [string, Input]
+    !             variable name in h5 file, must be complex numerical rank 4 matrix
+    ! Output:
+    !   output:   [single percision complex matrix]
+    function h5load_C4_sp(filename, varname ) result(matrix)
+        character(len=*), intent(in) :: filename, varname
+        complex(kind=sp), dimension(:,:,:,:), allocatable :: matrix
+        real(kind=sp), dimension(:,:,:,:), allocatable :: matrix_r, matrix_i
+
+        character(len=100) :: dset_name ! dataset name
+
+        INTEGER(HID_T) :: file_id        ! File identifier
+        INTEGER(HID_T) :: dset_id        ! Dataset identifier
+        INTEGER(HID_T) :: space_id       ! Dataspace identifier
+
+        INTEGER :: error ! Error flag
+        INTEGER(8) :: dim1, dim2, dim3, dim4 ! matrix dimensions
+
+        INTEGER(HSIZE_T), DIMENSION(4) :: data_dims
+        INTEGER(HSIZE_T), DIMENSION(4) :: max_dims
+
+
+        ! Initialize FORTRAN interface.
+        CALL h5open_f(error)
+        ! Open an existing file with read only
+        CALL h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, error)
+
+        ! ----------------------- Get Matrix Dimensions -----------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        !Get dataspace ID
+        CALL h5dget_space_f(dset_id, space_id, error)
+        !Get dataspace dims
+        CALL h5sget_simple_extent_dims_f(space_id, data_dims, max_dims, error)
+        dim1 = data_dims(1)
+        dim2 = data_dims(2)
+        dim3 = data_dims(3)
+        dim4 = data_dims(4)
+        CALL h5sclose_f(space_id, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! -------------------------- Allocate Matrix --------------------------
+        ALLOCATE( matrix_r(dim1,dim2,dim3,dim4))
+        ALLOCATE( matrix_i(dim1,dim2,dim3,dim4))
+
+        ! ----------------------------- Real Part -----------------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_REAL"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of matrix
+        CALL h5dread_f(dset_id, H5T_IEEE_F32LE, matrix_r, data_dims, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! --------------------------- Imaginary Part ---------------------------
+        ! dataset name for real part
+        dset_name = varname // "/" // varname // "_IMAG"
+        ! Open an existing dataset.
+        CALL h5dopen_f(file_id, dset_name, dset_id, error)
+        ! Get data
+        ! H5T_IEEE_F64LE (double) or H5T_IEEE_F32LE (single) has to be
+        ! consistent with the variable type of matrix
+        CALL h5dread_f(dset_id, H5T_IEEE_F32LE, matrix_i, data_dims, error)
+        ! close dataset
+        CALL h5dclose_f(dset_id, error)
+
+        ! ------------------------ Build Complex Output ------------------------
+        matrix = CMPLX( matrix_r, matrix_i, sp)
+
+        ! ------------------------------ Clean Up ------------------------------
+        ! close file
+        CALL h5fclose_f(file_id, error)
+        ! close h5 interface
+        CALL h5close_f(error)
+        ! Deallocate
+        DEALLOCATE( matrix_r )
+        DEALLOCATE( matrix_i )
+
+    end function h5load_C4_sp
 
 
     ! subroutine h5loadVelocities( filename, varname, Buffer )
