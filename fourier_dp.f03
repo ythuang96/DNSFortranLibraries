@@ -18,7 +18,7 @@ module fourier_dp
 
     complex(C_DOUBLE_COMPLEX), dimension(ntseg) :: vector_tom_c2c
 
-    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fft_tseg_r2c, fft_tseg_c2c
+    public :: fft_plan, fft2, ifft2, ifftx, ifftz, fft_tseg_r2c, fft_tseg_c2c, fft_tseg_r2c_halfom
     public :: ifftz_h_vec, ifftx_h_vec
 
 
@@ -449,6 +449,55 @@ contains
         ENDDO
 
     end subroutine fft_tseg_r2c
+
+
+    ! subroutine fft_tseg_r2c_halfom( vector_in, matrix_out, WindowFunction )
+    ! Computes the segmented and windowed fft in time for a temporal real vector
+    !
+    ! Arguments
+    !   vector_in    : [double real, size (nt), Input]
+    !                  Time domain data as the input
+    !   matrix_out   : [double complex, size ((nom+1)/2,nseg), Output]
+    !                  Frequency domain data. The first dimension is omega,
+    !                  with the redundant (conjugate) data excluded, organized as 0, om1, om2 ...
+    !                  Note that omega is consistent with the resolvent definition with a negative sign
+    !                  The second dimension is the segment number
+    !   WindowFuncion: [double real, size (ntseg), Input]
+    !                  A real vector with same length as the temporal segment, for the window function
+    subroutine fft_tseg_r2c_halfom( vector_in, matrix_out, WindowFunction )
+        real   (kind=dp), intent( in), dimension(nt)             :: vector_in
+        complex(kind=dp), intent(out), dimension((nom+1)/2,nseg) :: matrix_out
+        real   (kind=dp), intent( in), dimension(ntseg)          :: WindowFunction
+
+        integer :: ii, ind_start
+
+        ! loop over all the welch segments
+        DO ii = 1, nseg
+
+            ! starting index of this time segment
+            ind_start = (ii-1)*( ntseg - noverlap )
+            ! The data of this time segment multiplied with the window function
+            vector_t = vector_in( ind_start+1:ind_start+ntseg ) * WindowFunction
+
+            ! perform transform
+            ! Note that omega is NOT consistent with the resolvent definition with a negative sign
+            ! as the fft plan uses forward fft
+            call fftw_execute_dft_r2c( plan_fftt, vector_t, vector_om)
+
+            ! Perform the truncation in omega and copy the transformed vector to the output data matrix
+            ! Since the vector_om has a missing negative sign
+            ! it is organized as: 0, -om1, -om2, ...
+            ! The output should be organized as: 0, om1, om2 ...
+
+            ! omega = 0
+            matrix_out( 1, ii ) = vector_om(1) /real(ntseg,dp)
+            ! omega > 0
+            matrix_out( 2:(nom+1)/2, ii) = conjg( vector_om(2:(nom+1)/2) )/real(ntseg,dp)
+            ! conjg to conform to the resolvent standart with negative sign for omega
+
+        ENDDO
+
+    end subroutine fft_tseg_r2c_halfom
 
 
     ! subroutine fft_tseg_c2c( vector_in, matrix_out, WindowFuncion)
