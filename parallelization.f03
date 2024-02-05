@@ -11,7 +11,7 @@ module parallelization
     public :: change_dim3slice_to_dim1slice, change_dim2slice_to_dim1slice
     public :: change_dim2slice_to_dim3slice_sp
     public :: changeR_dim3slice_to_dim2slice
-    public :: allreduce_C1, allreduce_C2
+    public :: allreduce_C1, allreduce_C2, allreduce_C3
     public :: bcast_C2
 
 
@@ -1194,6 +1194,37 @@ contains
             call MPI_ALLREDUCE( MPI_IN_PLACE, matrix, count, MPI_COMPLEX       , mpi_operator, MPI_COMM_WORLD, ierr)
         endif
     end subroutine allreduce_C2
+
+
+    ! subroutine allreduce_C3(matrix, operator)
+    ! This function peforms MPI_allreduce on a 3d complex matrix
+    ! The allreduce operation is performed element wise for each element in the matrix
+    !
+    ! Arguments:
+    !   matrix      : [double/single, size (size_dim1, size_dim2, size_dim3), Input/Output]
+    !                 the input/output data matrix, all reduce is performed in place
+    !   mpi_operator: [Integer, Input]
+    !                 MPI operation to perform, ex: MPI_SUM, MPI_MAX, MPI_MIN etc
+    subroutine allreduce_C3(matrix, mpi_operator)
+        complex(kind=cp), intent(inout), dimension(:,:,:) :: matrix ! size (size_dim1, size_dim2, size_dim3)
+        integer, intent( in) :: mpi_operator
+
+        integer :: size_matrix(3), count
+        ! MPI
+        integer :: ierr
+
+        ! get matrix dimensions
+        size_matrix = shape( matrix )
+        ! Data count
+        count = size_matrix(1) * size_matrix(2) * size_matrix(3)
+
+        ! Sum data over all processors
+        if      ( cp .eq. dp ) then
+            call MPI_ALLREDUCE( MPI_IN_PLACE, matrix, count, MPI_DOUBLE_COMPLEX, mpi_operator, MPI_COMM_WORLD, ierr)
+        else if ( cp .eq. sp ) then
+            call MPI_ALLREDUCE( MPI_IN_PLACE, matrix, count, MPI_COMPLEX       , mpi_operator, MPI_COMM_WORLD, ierr)
+        endif
+    end subroutine allreduce_C3
 
 
     ! subroutine bcast_C2(matrix, myid)
