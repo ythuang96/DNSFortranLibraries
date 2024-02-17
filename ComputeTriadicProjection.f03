@@ -10,6 +10,7 @@ module ComputeTriadicProjection
 contains
     ! subroutine compute_Pkx(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kx, Py_kx, Pz_kx)
     ! This function computes the projection coefficient P_kx at a given yplane
+    ! and for ONE SPECIFIC TEMPORAL SNAPSHOT
     !
     ! Arguments:
     !   uf,vf,wf:            [double/single complex, Size (mxf,mzf), Input]
@@ -25,7 +26,7 @@ contains
         use wavenumbers, only: kx_derivative, kz_derivative
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
-        complex(kind=cp), intent(inout), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
+        complex(kind=cp), intent(out), dimension(nkx_pos,nkx_full) :: Px_kx, Py_kx, Pz_kx
 
         ! Results after ifft in z
         ! Note that these all have a built in transpose that exchanges the
@@ -87,10 +88,8 @@ contains
                     (-uf_temp*dudx_t(:,kk) -vf_temp*dudy_t(:,kk) -wf_temp*dudz_t(:,kk)) &
                     ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
                     *CONJG(fx_t(:,kk+jj-1)) &
-                    ! average in z and time
-                    )/real(mgalz, cp)/real(nt,cp) &
-                    ! add to the cumulative time sum
-                    + Px_kx(jj,kk)
+                    ! average in z
+                    )/real(mgalz, cp)
 
                 ! --------------------------- Py_kx ---------------------------
                 Py_kx(jj,kk) = SUM( &
@@ -98,10 +97,8 @@ contains
                     (-uf_temp*dvdx_t(:,kk) -vf_temp*dvdy_t(:,kk) -wf_temp*dvdz_t(:,kk)) &
                     ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
                     *CONJG(fy_t(:,kk+jj-1)) &
-                    ! average in z and time
-                    )/real(mgalz, cp)/real(nt,cp) &
-                    ! add to the cumulative time sum
-                    + Py_kx(jj,kk)
+                    ! average in z
+                    )/real(mgalz, cp)
 
                 ! --------------------------- Pz_kx ---------------------------
                 Pz_kx(jj,kk) = SUM( &
@@ -109,10 +106,8 @@ contains
                     (-uf_temp*dwdx_t(:,kk) -vf_temp*dwdy_t(:,kk) -wf_temp*dwdz_t(:,kk)) &
                     ! project onto this kx3, which is shifted by (jj-1) points compared to kx2
                     *CONJG(fz_t(:,kk+jj-1)) &
-                    ! average in z and time
-                    )/real(mgalz, cp)/real(nt,cp) &
-                    ! add to the cumulative time sum
-                    + Pz_kx(jj,kk)
+                    ! average in z
+                    )/real(mgalz, cp)
             ENDDO
 
         ENDDO
@@ -122,6 +117,7 @@ contains
 
     ! subroutine compute_Pkz(uf,vf,wf,dudyf,dvdyf,dwdyf,fxf,fyf,fzf, Px_kz, Py_kz, Pz_kz)
     ! This function computes the projection coefficient P_kz at a given yplane
+    ! and for ONE SPECIFIC TEMPORAL SNAPSHOT
     !
     ! Arguments:
     !   uf,vf,wf:            [double complex, Size (mxf,mzf), Input]
@@ -137,7 +133,7 @@ contains
         use wavenumbers, only: kx_derivative, kz_derivative
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(mxf,mzf) :: uf,vf,wf, dudyf,dvdyf,dwdyf, fxf,fyf,fzf
-        complex(kind=cp), intent(inout), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
+        complex(kind=cp), intent(out), dimension(nkz_pos,nkz_full) :: Px_kz, Py_kz, Pz_kz
 
         ! Results after ifft in x
         complex(kind=cp), dimension(mgalx, nkz_pos ) :: uf_t, vf_t, wf_t
@@ -197,10 +193,8 @@ contains
                     (-uf_temp*dudx_t(:,kk) -vf_temp*dudy_t(:,kk) -wf_temp*dudz_t(:,kk)) &
                     ! project onto this kz3, which is shifted by (jj-1) points compared to kz2
                     *CONJG(fx_t(:,kk+jj-1)) &
-                    ! average in x and time
-                    )/real(mgalz, cp)/real(nt,cp) &
-                    ! add to the cumulative time sum
-                    + Px_kz(jj,kk)
+                    ! average in x
+                    )/real(mgalz, cp)
 
                 ! --------------------------- Py_kz ---------------------------
                 Py_kz(jj,kk) = SUM( &
@@ -208,10 +202,8 @@ contains
                     (-uf_temp*dvdx_t(:,kk) -vf_temp*dvdy_t(:,kk) -wf_temp*dvdz_t(:,kk)) &
                     ! project onto this kz3, which is shifted by (jj-1) points compared to kz2
                     *CONJG(fy_t(:,kk+jj-1)) &
-                    ! average in x and time
-                    )/real(mgalz, cp)/real(nt,cp) &
-                    ! add to the cumulative time sum
-                    + Py_kz(jj,kk)
+                    ! average in x
+                    )/real(mgalz, cp)
 
                 ! --------------------------- Pz_kz ---------------------------
                 Pz_kz(jj,kk) = SUM( &
@@ -219,10 +211,8 @@ contains
                     (-uf_temp*dwdx_t(:,kk) -vf_temp*dwdy_t(:,kk) -wf_temp*dwdz_t(:,kk)) &
                     ! project onto this kz3, which is shifted by (jj-1) points compared to kz2
                     *CONJG(fz_t(:,kk+jj-1)) &
-                    ! average in x and time
-                    )/real(mgalz, cp)/real(nt,cp) &
-                    ! add to the cumulative time sum
-                    + Pz_kz(jj,kk)
+                    ! average in x
+                    )/real(mgalz, cp)
             ENDDO
 
         ENDDO
@@ -280,13 +270,13 @@ contains
     ! This function computes the projection coefficient P_om at a given yplane
     !
     ! Arguments:
-    !   u_xom, v_xom, w_xom      : [double/single complex, Size (mgalx, b_z:e_z, nt/2+1), Input]
+    !   u_xom, v_xom, w_xom      : [double/single complex, Size (mgalx, b_z:e_z, nom_pos), Input]
     !                              velocity fields at a single y plane, in physical x, z space and Fourier omega space, distributed in z
-    !   ddx_xom, ddy_xom, ddz_xom: [double/single complex, Size (mgalx, b_z:e_z, nt/2+1), Input]
+    !   ddx_xom, ddy_xom, ddz_xom: [double/single complex, Size (mgalx, b_z:e_z, nom_pos), Input]
     !                              x, y, z derivatives
-    !   f_xom                    : [double/single complex, Size (mgalx, b_z:e_z, nt/2+1), Input]
+    !   f_xom                    : [double/single complex, Size (mgalx, b_z:e_z, nom_pos), Input]
     !                              non-linear forcing
-    !   P_om                     : [double/single complex, Size (nkx_pos,nkx_full), Output]
+    !   P_om                     : [double/single complex, Size (nom_pos,nom), Output]
     !                              The computed projection coefficients
     !
     ! Note:
@@ -298,12 +288,11 @@ contains
     !   And with all necessary mean subtraction
     subroutine compute_Pom(u_xom,v_xom,w_xom, ddx_xom,ddy_xom,ddz_xom, f_xom, P_om)
         use mpi
+        use parallelization, only: allreduce_C2
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(:,:,:) :: u_xom,v_xom,w_xom, ddx_xom,ddy_xom,ddz_xom, f_xom
-        complex(kind=cp), intent(out), dimension(nt/2+1,nt) :: P_om
+        complex(kind=cp), intent(out), dimension(nom_pos,nom) :: P_om
 
-        ! P_om for the current processor
-        complex(kind=cp), dimension(nt/2+1,nt) :: P_local
         ! Variables with full omega range
         complex(kind=cp), dimension(:,:,:), allocatable :: ddx_fullom, ddy_fullom, ddz_fullom, f_fullom
 
@@ -313,26 +302,21 @@ contains
         complex(kind=cp), dimension(:,:), allocatable :: u_temp, v_temp, w_temp
         integer :: jj, kk
 
-        ! Variables for MPI
-        real   (kind=cp), dimension(nt/2+1,nt,2) :: send_buffer, recv_buffer ! send and recieve buffers
-        integer :: count ! allreduce data count
-        integer :: ierr ! MPI error
-
         ! ------------------------- Allocate Vaiables -------------------------
         ! Input matrix dimensions
         data_dim = shape(u_xom)
         ! Allocate temp variables with full omega range
-        allocate( ddx_fullom(data_dim(1), data_dim(2), nt) )
-        allocate( ddy_fullom(data_dim(1), data_dim(2), nt) )
-        allocate( ddz_fullom(data_dim(1), data_dim(2), nt) )
-        allocate(   f_fullom(data_dim(1), data_dim(2), nt) )
+        allocate( ddx_fullom(data_dim(1), data_dim(2), nom) )
+        allocate( ddy_fullom(data_dim(1), data_dim(2), nom) )
+        allocate( ddz_fullom(data_dim(1), data_dim(2), nom) )
+        allocate(   f_fullom(data_dim(1), data_dim(2), nom) )
         ! Allocate temp variables for u, v, w at a single omega for the loop
         allocate( u_temp(data_dim(1), data_dim(2)) )
         allocate( v_temp(data_dim(1), data_dim(2)) )
         allocate( w_temp(data_dim(1), data_dim(2)) )
 
         ! Zero results
-        P_local = (0.0_cp, 0.0_cp)
+        P_om = (0.0_cp, 0.0_cp)
 
         ! ----------------------- Fillin negative omega -----------------------
         ! Fill the other half of omega using hermitian symmetry
@@ -342,9 +326,9 @@ contains
         call fillnegomega(   f_xom,   f_fullom )
 
         ! ------------------------- Loop over omega_1 -------------------------
-        DO jj = 1, nt/2+1
-            ! om1 is non-negative omega, with size nt/2+1
-            ! om2 is the full range omega, with size nt
+        DO jj = 1, nom_pos
+            ! om1 is non-negative omega, with size nom_pos
+            ! om2 is the full range omega, with size nom
             !
             ! The larger om1 is, the smaller om2 has to be to keep om3 in range.
             ! If om1 = 0, then om2, om3 will both be the full range.
@@ -358,8 +342,8 @@ contains
             w_temp = w_xom(:,:,jj)
 
             ! Loop over the active range of om2, which has (jj-1) points from the highest kx2 removed
-            DO kk = 1, nt-(jj-1)
-                P_local(jj,kk) = SUM( &
+            DO kk = 1, nom-(jj-1)
+                P_om(jj,kk) = SUM( &
                     ! compute f for the current om1 + om2
                     (-u_temp*ddx_fullom(:,:,kk) -v_temp*ddy_fullom(:,:,kk) -w_temp*ddz_fullom(:,:,kk)) &
                     ! project onto this om3, which is shifted by (jj-1) points compared to om2
@@ -370,21 +354,8 @@ contains
         ENDDO
 
         ! ------------------- Sum result over all processors -------------------
-        ! Each processor has a small amount of z grid points
-        ! Package real and imaginary parts
-        send_buffer(:,:,1) =  real( P_local(:,:), cp)
-        send_buffer(:,:,2) = aimag( P_local(:,:) )
-        ! Data count (times 2 for real and imaginary parts)
-        count = (nt/2+1) * nt * 2
-        ! Sum data over all processors
-        ! (note that all data are already divided by mgalz, this sum is therefore the average in z)
-        if      ( cp .eq. dp ) then
-            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-        else if ( cp .eq. sp ) then
-            call MPI_ALLREDUCE( send_buffer, recv_buffer, count, MPI_REAL            , MPI_SUM, MPI_COMM_WORLD, ierr)
-        endif
-        ! Build final result from real and imaginary parts
-        P_om = CMPLX( recv_buffer(:,:,1), recv_buffer(:,:,2), cp)
+        ! data is distributed in z, use all reduce to sum in z
+        call allreduce_C2( P_om, MPI_SUM )
 
         ! ------------------------------ Clean Up ------------------------------
         deallocate( ddx_fullom )
@@ -402,19 +373,19 @@ contains
     ! This subroutine fills the negative omega parts for a matrix
     !
     ! Arguements
-    !   matrix_in : [complex matrix size (:,:,nt/2+1), Input ]
+    !   matrix_in : [complex matrix size (:,:,nom_pos), Input ]
     !               matrix with omega as dimension 3, only the non-negative omegas
-    !   matrix_out: [complex matrix size (:,:,nt    ), Output]
+    !   matrix_out: [complex matrix size (:,:,nom    ), Output]
     !               matrix with both postivie and negative omega
     !               dimension 3 corresponds to omegas that are montonically increasing
     !
     ! Data Arrangement
     !   dimension 3 of input:
-    !     matrix index         1      2    ...       nt/2         nt/2+1
-    !     corresponding om:  0(DC)   dom   ...   (nt/2-1)*dom  omega_nyquist
+    !     matrix index         1     ...   nom_pos
+    !     corresponding om:  0(DC)   ...   om_max
     !   dimension 3 of output:
-    !     matrix index              1         ...   nt/2-1  nt/2   nt/2+1   ...       nt-1          nt
-    !     corresponding om:  -(nt/2-1)*dom   ...    -dom    0(DC)     dom     ...   (nt/2-1)*dom  omega_nyquist
+    !     matrix index          1      ...   (nom+1)/2 = nom_pos   ...     nom
+    !     corresponding om:  -om_max   ...          0(DC)          ...   om_max
     subroutine fillnegomega(matrix_in, matrix_out)
         ! Input/Outputs
         complex(kind=cp), intent( in), dimension(:,:,:) :: matrix_in
@@ -423,18 +394,12 @@ contains
         ! Loop index
         integer :: kk
 
-        ! negative omega range, take the conjugate
-        DO kk = 1, nt/2-1
-            matrix_out(:,:,kk) = conjg( matrix_in(:,:,nt/2+1-kk))
+        ! negative omega range, take the conjugate and flip
+        DO kk = 1, nom_pos-1
+            matrix_out(:,:,kk) = conjg( matrix_in(:,:,nom_pos+1-kk))
         ENDDO
-        ! omega = 0 component (this is real data)
-        matrix_out(:,:,nt/2) = matrix_in(:,:,1)
-        ! positive omega range
-        DO kk = nt/2+1, nt-1
-            matrix_out(:,:,kk) = matrix_in(:,:,kk-nt/2+1)
-        ENDDO
-        ! max omega (this component is real)
-        matrix_out(:,:,nt) = matrix_in(:,:,nt/2+1)
+        ! omega >= 0 component (just shifted)
+        matrix_out(:,:,nom_pos:nom) = matrix_in
     end subroutine fillnegomega
 
 end module ComputeTriadicProjection
